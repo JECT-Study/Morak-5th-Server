@@ -8,7 +8,7 @@ public record ApiResponse<T>(boolean success, T data, ApiError error) {
 		return new ApiResponse<>(true, data, null);
 	}
 
-	public static ApiResponse<Map<String, Object>> success() {
+	public static ApiResponse<Map<String, Object>> successEmpty() {
 		return success(Map.of());
 	}
 

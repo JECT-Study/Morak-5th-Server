@@ -1,9 +1,5 @@
 package com.morak.common.filter;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,9 +7,11 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.regex.Pattern;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
@@ -42,7 +40,8 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 	protected void doFilterInternal(
 			HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
-		ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request);
+		ContentCachingRequestWrapper wrappedRequest =
+				new ContentCachingRequestWrapper(request, MAX_LOG_BODY_LENGTH);
 		ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
 		long startedAt = System.nanoTime();
 
@@ -72,7 +71,7 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 		if (content.length == 0) {
 			return "<empty>";
 		}
-		if (content.length > MAX_LOG_BODY_LENGTH) {
+		if (content.length >= MAX_LOG_BODY_LENGTH) {
 			return "<omitted: body exceeds log limit>";
 		}
 		if (contentType == null || !contentType.toLowerCase().contains("application/json")) {
@@ -90,13 +89,11 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 
 	private JsonNode maskSensitiveFields(JsonNode node) {
 		if (node instanceof ObjectNode objectNode) {
-			Iterator<Map.Entry<String, JsonNode>> fields = objectNode.fields();
-			while (fields.hasNext()) {
-				Map.Entry<String, JsonNode> field = fields.next();
-				if (SENSITIVE_FIELD.matcher(field.getKey()).find()) {
-					objectNode.put(field.getKey(), "[MASKED]");
+			for (String fieldName : objectNode.propertyNames()) {
+				if (SENSITIVE_FIELD.matcher(fieldName).find()) {
+					objectNode.put(fieldName, "[MASKED]");
 				} else {
-					maskSensitiveFields(field.getValue());
+					maskSensitiveFields(objectNode.get(fieldName));
 				}
 			}
 		} else if (node instanceof ArrayNode arrayNode) {
