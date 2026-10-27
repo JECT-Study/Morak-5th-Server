@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -41,6 +42,22 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiResponse<Void>> handleUnexpectedException(Exception exception) {
+		if (exception instanceof ErrorResponse errorResponse) {
+			var status = errorResponse.getStatusCode();
+			if (status.is5xxServerError()) {
+				log.error("Unhandled request error", exception);
+			}
+			ErrorCode errorCode =
+					status.value() == 404
+							? CommonErrorCode.RESOURCE_NOT_FOUND
+							: status.is5xxServerError()
+									? CommonErrorCode.INTERNAL_SERVER_ERROR
+									: CommonErrorCode.INVALID_REQUEST;
+			return ResponseEntity.status(status)
+					.headers(errorResponse.getHeaders())
+					.body(ApiResponse.failure(errorCode.code(), errorCode.message()));
+		}
+
 		log.error("Unhandled request error", exception);
 		ErrorCode errorCode = CommonErrorCode.INTERNAL_SERVER_ERROR;
 		return ResponseEntity.status(errorCode.status())
