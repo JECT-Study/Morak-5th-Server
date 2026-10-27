@@ -2,7 +2,7 @@
 name: "📌 Issue"
 about: "개발 작업 등록"
 title: ""
-labels: []
+labels: ["👨🏻‍💻backend"]
 assignees: []
 ---
 
