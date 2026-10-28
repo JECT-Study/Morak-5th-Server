@@ -186,6 +186,63 @@ infrastructure → domain
 - 거래의 idempotency_key와 알림의 dedup_key 등 중복 방지 제약은 실제 구현과 마이그레이션에서 반영한다.
 - API collection 경로는 /api/v1/challenges처럼 복수형 kebab-case를 사용하며, 도메인 오류 코드는 도메인 이름을 접두사로 사용한다.
 
+## 브랜치 규칙
+
+작업 브랜치는 `타입/#이슈번호-작업명` 형식으로 작성한다. 작업명은 영문 소문자와 하이픈(`-`)을 사용한다.
+
+예: `fts/#12-user-signup`, `docs/#23-readme`
+
+| 브랜치 | 용도 | 예시 |
+| --- | --- | --- |
+| `main` | 배포 기준 브랜치 | `main` |
+| `fts` | 새로운 기능 개발 | `fts/#12-user-signup` |
+| `bugfix` | 버그 수정 | `bugfix/#15-login-error` |
+| `hfx` | 운영 중 발생한 긴급 오류 수정 | `hfx/#18-token-validation` |
+| `docs` | 문서 작성·수정 | `docs/#23-readme` |
+| `refactor` | 기능 변경 없이 코드 구조 개선 | `refactor/#24-auth-service` |
+| `test` | 테스트 추가·수정 | `test/#25-user-service` |
+| `perf` | 성능 개선 | `perf/#26-challenge-query` |
+| `mt` | 빌드, 의존성, CI 및 개발 환경 유지보수 | `mt/#27-ci-config` |
+| `style` | 동작에 영향을 주지 않는 코드 포맷 수정 | `style/#28-code-format` |
+
+## 커밋 메시지 규칙
+
+커밋 메시지는 `타입: 작업 내용` 형식으로 작성한다. 타입은 영문 소문자, 작업 내용은 한글을 기본으로 하며 변경 내용을 간결하게 적는다.
+
+브랜치와 커밋 타입은 다를 수 있다. 예: `fts` → `feat`, `bugfix`·`hfx` → `fix`, `mt` → `chore`·`build`·`ci`.
+
+| 타입 | 용도 | 예시 |
+| --- | --- | --- |
+| `feat` | 새로운 기능 추가 | `feat: 회원가입 API 추가` |
+| `fix` | 버그 수정 및 긴급 오류 수정 | `fix: 만료된 토큰 검증 오류 수정` |
+| `docs` | 문서 작성·수정 | `docs: README 브랜치 규칙 추가` |
+| `refactor` | 기능 변경 없이 코드 구조 개선 | `refactor: 인증 서비스 책임 분리` |
+| `test` | 테스트 추가·수정 | `test: 회원가입 중복 이메일 테스트 추가` |
+| `perf` | 성능 개선 | `perf: 챌린지 조회 쿼리 개선` |
+| `style` | 동작에 영향을 주지 않는 코드 포맷 수정 | `style: 코드 들여쓰기 정리` |
+| `build` | 빌드 설정 및 의존성 변경 | `build: PostgreSQL 드라이버 버전 변경` |
+| `ci` | CI 설정 변경 | `ci: PR 포맷 검사 설정 추가` |
+| `chore` | 그 외 개발 환경·도구 유지보수 | `chore: gitignore 항목 추가` |
+| `revert` | 이전 커밋 되돌리기 | `revert: 회원가입 검증 변경 되돌리기` |
+
+- 하나의 커밋에는 하나의 목적에 해당하는 변경을 담는다. 기능 브랜치에서도 문서 변경은 `docs`, 테스트 추가는 `test`처럼 구분한다.
+
+## Flyway 마이그레이션 파일 네이밍 규칙
+
+DB 변경 SQL 파일은 `src/main/resources/db/migration`에 두고, `VYYYYMMDDHHmmss__설명.sql` 형식으로 작성한다.
+
+예: `V20261028143005__create_users_table.sql`
+
+| 구성 | 규칙 |
+| --- | --- |
+| `YYYYMMDD` | 파일 작성 날짜를 8자리로 표기한다. 예: `20261028` |
+| `HHmmss` | 파일 작성 시간을 24시간제 시·분·초 6자리로 표기한다. 예: `143005`는 14시 30분 5초 |
+| `__` | 버전과 설명 사이에는 밑줄 두 개를 사용한다. |
+| `설명` | 변경 내용을 알 수 있도록 영문 소문자와 밑줄로 작성한다. 예: `create_users_table` |
+
+- PR을 올리기 전에 기존 파일과 버전(날짜·시·분·초)이 중복되지 않는지 확인한다. 같은 초에 여러 파일을 작성하면 초 단위를 증가시켜 고유한 버전을 부여한다.
+- 이미 적용된 마이그레이션 파일은 이름이나 내용을 수정하지 않고, 추가 변경은 새 마이그레이션 파일로 작성한다.
+
 ## 검증
 
 Windows PowerShell 기준 명령이다. macOS·Linux에서는 `.\gradlew.bat`을 `./gradlew`로 바꾼다.
