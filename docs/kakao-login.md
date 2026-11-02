@@ -83,7 +83,7 @@ Next.js BFF가 OAuth state 검증과 provider callback을 담당한다. 백엔�
 
 | 위치 | 책임 |
 | --- | --- |
-| `auth/presentation/controller/AuthController` | 로그인 시작, 콜백, 인가 코드 로그인 HTTP 요청 처리 |
+| `auth/presentation/controller/AuthController` | 인가 코드 로그인 HTTP 요청 처리 (`POST /auth/login/{provider}`) |
 | `auth/application/service/KakaoLoginService` | 소셜 제공자에서 프로필을 가져오고 예외를 애플리케이션 오류로 변환 |
 | `auth/application/service/CompleteSocialLoginService` | 트랜잭션 내 회원·소셜 계정 확인/생성, 프로필 갱신, 토큰 발급 및 저장 |
 | `auth/application/port/out` | OAuth 제공자와 서비스 토큰 발급 기능의 애플리케이션 경계(interface) 정의 |

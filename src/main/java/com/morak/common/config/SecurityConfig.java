@@ -6,6 +6,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.morak.common.response.ApiResponse;
 import com.morak.feature.auth.domain.exception.AuthErrorCode;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,6 +33,7 @@ public class SecurityConfig {
 				.exceptionHandling(errors -> errors
 						.authenticationEntryPoint((request, response, exception) -> {
 							response.setStatus(AuthErrorCode.AUTHENTICATION_REQUIRED.status().value());
+							response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
 							response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 							objectMapper.writeValue(response.getOutputStream(), ApiResponse.failure(
 									AuthErrorCode.AUTHENTICATION_REQUIRED.code(),

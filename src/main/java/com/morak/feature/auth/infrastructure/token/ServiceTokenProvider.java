@@ -33,6 +33,9 @@ public class ServiceTokenProvider implements ServiceTokenIssuer {
 		}
 		SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
 		this.jwtEncoder = new NimbusJwtEncoder(new ImmutableSecret<>(key));
+		if (accessValidity.compareTo(java.time.Duration.ofSeconds(1)) < 0) {
+			throw new IllegalStateException("morak.auth.jwt.access-token-validity must be at least 1 second");
+		}
 		this.accessValiditySeconds = accessValidity.toSeconds();
 	}
 
