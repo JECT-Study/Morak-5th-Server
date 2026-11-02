@@ -1,5 +1,8 @@
 package com.morak.feature.auth.application.port.out;
 
+import lombok.Getter;
+
+@Getter
 public class OAuthProviderException extends RuntimeException {
 
 	private final boolean invalidAuthorization;
@@ -9,7 +12,4 @@ public class OAuthProviderException extends RuntimeException {
 		this.invalidAuthorization = invalidAuthorization;
 	}
 
-	public boolean isInvalidAuthorization() {
-		return invalidAuthorization;
-	}
 }
