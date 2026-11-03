@@ -1,7 +1,8 @@
 package com.morak.feature.auth.application.service;
 
+import com.morak.feature.auth.application.dto.result.AccessToken;
 import com.morak.common.exception.BusinessException;
-import com.morak.feature.auth.application.dto.IssuedTokens;
+import com.morak.feature.auth.application.dto.result.IssuedTokens;
 import com.morak.feature.auth.application.port.out.ServiceTokenIssuer;
 import com.morak.feature.auth.application.port.out.SocialProfile;
 import com.morak.feature.auth.domain.entity.RefreshToken;
@@ -70,16 +71,17 @@ public class CompleteSocialLoginService {
 			throw new BusinessException(AuthErrorCode.WITHDRAWN_USER);
 		}
 
-		String accessToken = tokenIssuer.createAccessToken(user.getId(), user.isOnboarded());
+		AccessToken accessToken = tokenIssuer.createAccessToken(user.getId(), user.isOnboarded());
 		String refreshToken = tokenIssuer.createRefreshToken();
 		LocalDateTime now = LocalDateTime.now();
 		refreshTokenRepository.save(new RefreshToken(
 				user.getId(), tokenIssuer.hash(refreshToken), now.plus(refreshValidity)));
 		return new IssuedTokens(
-				accessToken,
+				accessToken.value(),
 				refreshToken,
 				"Bearer",
 				tokenIssuer.accessValiditySeconds(),
+				accessToken.expiresAt(),
 				user.isOnboarded());
 	}
 

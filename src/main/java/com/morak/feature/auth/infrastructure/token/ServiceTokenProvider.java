@@ -4,6 +4,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import com.morak.feature.auth.application.dto.result.AccessToken;
 import java.util.Base64;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -40,16 +42,18 @@ public class ServiceTokenProvider implements ServiceTokenIssuer {
 	}
 
 	@Override
-	public String createAccessToken(Long userId, boolean onboarded) {
-		Instant now = Instant.now();
+	public AccessToken createAccessToken(Long userId, boolean onboarded) {
+		Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+		Instant expiresAt = now.plusSeconds(accessValiditySeconds);
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 				.subject(userId.toString())
 				.issuedAt(now)
-				.expiresAt(now.plusSeconds(accessValiditySeconds))
+				.expiresAt(expiresAt)
 				.claim("onboarded", onboarded)
 				.build();
-		return jwtEncoder.encode(JwtEncoderParameters.from(
+		String value = jwtEncoder.encode(JwtEncoderParameters.from(
 				JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
+		return new AccessToken(value, expiresAt);
 	}
 
 	@Override

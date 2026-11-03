@@ -1,5 +1,8 @@
 package com.morak.feature.auth.application.service;
 
+import org.mockito.InOrder;
+import com.morak.feature.auth.application.dto.result.IssuedTokens;
+import com.morak.feature.auth.application.dto.result.AccessToken;
 import com.morak.feature.auth.application.port.out.ServiceTokenIssuer;
 import com.morak.feature.auth.application.port.out.SocialProfile;
 import com.morak.feature.auth.domain.entity.SocialAccount;
@@ -49,12 +52,15 @@ class CompleteSocialLoginServiceTest {
 		when(winner.getId()).thenReturn(42L);
 		when(winner.isActive()).thenReturn(true);
 		when(users.findById(42L)).thenReturn(Optional.of(winner));
-		when(tokens.createAccessToken(42L, false)).thenReturn("access");
+		when(tokens.createAccessToken(42L, false)).thenReturn(new AccessToken(
+				"access", java.time.Instant.parse("2026-11-02T12:30:00Z")));
 		when(tokens.createRefreshToken()).thenReturn("refresh");
 
-		assertEquals("access", service.login(profile).accessToken());
+		IssuedTokens result = service.login(profile);
+		assertEquals("access", result.accessToken());
+		assertEquals(java.time.Instant.parse("2026-11-02T12:30:00Z"), result.accessTokenExpiresAt());
 
-		var order = inOrder(transactions, accounts, users, tokens);
+		InOrder order = inOrder(transactions, accounts, users, tokens);
 		order.verify(transactions).getTransaction(argThat(definition ->
 				definition.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRES_NEW));
 		order.verify(accounts).findByProviderAndProviderUserId("KAKAO", "123");
@@ -73,7 +79,7 @@ class CompleteSocialLoginServiceTest {
 
 	@Test
 	void propagatesOtherStorageFailuresWithoutRetrying() {
-		var failure = new DataIntegrityViolationException("unrelated constraint");
+		DataIntegrityViolationException failure = new DataIntegrityViolationException("unrelated constraint");
 		when(accounts.save(any())).thenThrow(failure);
 		assertSame(failure, assertThrows(DataIntegrityViolationException.class, () -> service.login(profile)));
 		verify(transactions).rollback(first);

@@ -1,6 +1,7 @@
 package com.morak.feature.auth.presentation.controller;
 
 import com.morak.common.response.ApiResponse;
+import com.morak.feature.auth.application.dto.command.SocialLoginCommand;
 import com.morak.feature.auth.application.service.KakaoLoginService;
 import com.morak.feature.auth.presentation.dto.request.SocialLoginRequest;
 import com.morak.feature.auth.presentation.dto.response.LoginResponse;
@@ -42,6 +43,6 @@ public class AuthController {
 			@Valid @RequestBody SocialLoginRequest request) {
 		return ResponseEntity.ok()
 				.cacheControl(CacheControl.noStore())
-				.body(ApiResponse.success(LoginResponse.from(kakaoLoginService.login(provider, request.code()))));
+				.body(ApiResponse.success(LoginResponse.from(kakaoLoginService.login(new SocialLoginCommand(provider, request.code())))));
 	}
 }
