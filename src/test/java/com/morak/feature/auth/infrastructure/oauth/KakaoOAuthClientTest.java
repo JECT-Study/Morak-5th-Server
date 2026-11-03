@@ -1,5 +1,6 @@
 package com.morak.feature.auth.infrastructure.oauth;
 
+import com.morak.feature.auth.application.port.out.SocialProfile;
 import com.morak.feature.auth.application.port.out.OAuthProviderException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -28,7 +29,7 @@ class KakaoOAuthClientTest {
 			server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
 					.andRespond(withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON)
 							.body("{\"error\":\"" + error + "\"}"));
-			var exception = assertThrows(OAuthProviderException.class, () -> client.getProfile("code"));
+			OAuthProviderException exception = assertThrows(OAuthProviderException.class, () -> client.getProfile("code"));
 			assertEquals("invalid_grant".equals(error), exception.isInvalidAuthorization());
 			server.verify();
 			server.reset();
@@ -39,7 +40,7 @@ class KakaoOAuthClientTest {
 	void rejectsMalformedUserIds() {
 		for (String profile : new String[] {"{}", "{\"id\":null}", "{\"id\":\"\"}", "{\"id\":\"123\"}", "{\"id\":1.5}"}) {
 			expectProfile(profile);
-			var exception = assertThrows(OAuthProviderException.class, () -> client.getProfile("code"));
+			OAuthProviderException exception = assertThrows(OAuthProviderException.class, () -> client.getProfile("code"));
 			assertFalse(exception.isInvalidAuthorization());
 			server.verify();
 			server.reset();
@@ -51,7 +52,7 @@ class KakaoOAuthClientTest {
 		for (String image : new String[] {"https://example.com/new.png", "", " "}) {
 			expectProfile("{\"id\":12345678901,\"kakao_account\":{\"profile\":{\"profile_image_url\":\""
 					+ image + "\"}},\"properties\":{\"profile_image\":\"https://example.com/old.png\"}}");
-			var profile = client.getProfile("code");
+			SocialProfile profile = client.getProfile("code");
 			assertEquals("12345678901", profile.providerUserId());
 			assertEquals(image.isBlank() ? "https://example.com/old.png" : image, profile.profileImageUrl());
 			server.verify();

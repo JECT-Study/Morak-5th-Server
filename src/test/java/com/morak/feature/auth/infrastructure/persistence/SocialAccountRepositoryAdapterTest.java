@@ -14,13 +14,13 @@ class SocialAccountRepositoryAdapterTest {
 
 	@Test
 	void translatesOnlyTheSocialAccountUniqueViolation() {
-		var repository = mock(JpaSocialAccountRepository.class);
-		var adapter = new SocialAccountRepositoryAdapter(repository);
-		var account = new SocialAccount(1L, "KAKAO", "123");
+		JpaSocialAccountRepository repository = mock(JpaSocialAccountRepository.class);
+		SocialAccountRepositoryAdapter adapter = new SocialAccountRepositoryAdapter(repository);
+		SocialAccount account = new SocialAccount(1L, "KAKAO", "123");
 		for (String constraint : new String[] {"uk_social_account_provider_user", "other_unique", "fk_social_account_user"}) {
 			for (String sqlState : new String[] {"23505", "23503"}) {
-				var cause = new ConstraintViolationException("constraint failed", new SQLException("failure", sqlState), constraint);
-				var failure = new DataIntegrityViolationException("save failed", cause);
+				ConstraintViolationException cause = new ConstraintViolationException("constraint failed", new SQLException("failure", sqlState), constraint);
+				DataIntegrityViolationException failure = new DataIntegrityViolationException("save failed", cause);
 				doThrow(failure).when(repository).saveAndFlush(account);
 				if (constraint.equals("uk_social_account_provider_user") && sqlState.equals("23505")) {
 					assertSame(failure, assertThrows(DuplicateSocialAccountException.class,

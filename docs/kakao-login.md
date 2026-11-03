@@ -30,6 +30,7 @@
     "refreshToken": "서비스 Refresh Token",
     "tokenType": "Bearer",
     "accessTokenExpiresIn": 1800,
+    "accessTokenExpiresAt": "2026-11-02T12:30:00Z",
     "onboarded": false
   },
   "error": null
