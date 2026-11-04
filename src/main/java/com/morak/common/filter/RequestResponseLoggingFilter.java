@@ -50,17 +50,20 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 			filterChain.doFilter(wrappedRequest, wrappedResponse);
 		} finally {
 			long durationMillis = (System.nanoTime() - startedAt) / 1_000_000;
+			Object route = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
 			log.info(
 					"HTTP {} {} status={} durationMs={} request={} response={}",
 					request.getMethod(),
 					request.getRequestURI(),
 					wrappedResponse.getStatus(),
 					durationMillis,
-					formatBody(
-							wrappedRequest.getContentAsByteArray(),
-							wrappedRequest.getContentType(),
-							wrappedRequest.getCharacterEncoding()),
-					"/users/me".equals(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE))
+					("/users/me/terms-agreements".equals(route) || "/users/me/marketing-agreements".equals(route))
+							? "<omitted: member agreements>"
+							: formatBody(
+									wrappedRequest.getContentAsByteArray(),
+									wrappedRequest.getContentType(),
+									wrappedRequest.getCharacterEncoding()),
+					"/users/me".equals(route)
 							? "<omitted: member profile>"
 							: formatBody(
 									wrappedResponse.getContentAsByteArray(),

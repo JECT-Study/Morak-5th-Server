@@ -1,6 +1,10 @@
 package com.morak.feature.user.domain.entity;
 
 import com.morak.common.entity.BaseEntity;
+import com.morak.common.exception.BusinessException;
+import com.morak.common.exception.CommonErrorCode;
+import com.morak.feature.user.domain.exception.UserErrorCode;
+import com.morak.feature.user.domain.vo.TermsAgreements;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -8,9 +12,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import lombok.Getter;
+import org.hibernate.annotations.DynamicUpdate;
 
 @Entity
 @Table(name = "users")
+@DynamicUpdate
+@Getter
 public class User extends BaseEntity {
 
 	@Id
@@ -48,15 +56,27 @@ public class User extends BaseEntity {
 		this.profileImageUrl = profileImageUrl;
 	}
 
-	public Long getId() { return id; }
-	public String getEmail() { return email; }
-	public String getNickname() { return nickname; }
-	public String getProfileImageUrl() { return profileImageUrl; }
-	public LocalDateTime getOnboardedAt() { return onboardedAt; }
 	public boolean hasAgreedToTerms() { return termsAgreedAt != null; }
-	public boolean isMarketingAgreed() { return marketingAgreed; }
 	public boolean isOnboarded() { return onboardedAt != null; }
 	public boolean isActive() { return "ACTIVE".equals(status) && deletedAt == null; }
+
+	public void agreeToTerms(TermsAgreements agreements, LocalDateTime now) {
+		if (hasAgreedToTerms()) {
+			throw new BusinessException(UserErrorCode.TERMS_ALREADY_AGREED);
+		}
+		if (!agreements.acceptsAllRequired()) {
+			throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
+		}
+		termsAgreedAt = now;
+		marketingAgreed = agreements.marketingAgreed();
+	}
+
+	public void updateMarketingAgreement(boolean agreed) {
+		if (!hasAgreedToTerms()) {
+			throw new BusinessException(UserErrorCode.TERMS_AGREEMENT_REQUIRED);
+		}
+		marketingAgreed = agreed;
+	}
 
 	public void updateSocialProfile(String email, String profileImageUrl) {
 		if (email != null && !email.isBlank()) {

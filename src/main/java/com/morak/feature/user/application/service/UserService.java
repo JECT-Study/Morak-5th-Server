@@ -7,7 +7,9 @@ import com.morak.feature.user.application.dto.result.UserAuthInfo;
 import com.morak.feature.user.domain.entity.User;
 import com.morak.feature.user.domain.repository.UserRepository;
 import com.morak.feature.user.domain.vo.Nickname;
+import com.morak.feature.user.domain.vo.TermsAgreements;
 import com.morak.feature.user.domain.vo.UserId;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +35,22 @@ public class UserService {
 		return userRepository.findById(userId)
 				.filter(User::isActive)
 				.map(MyUserInfo::from)
+				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
+	}
+
+	@Transactional
+	public void agreeToTerms(UserId userId, TermsAgreements agreements) {
+		getActiveUserForUpdate(userId).agreeToTerms(agreements, LocalDateTime.now());
+	}
+
+	@Transactional
+	public void updateMarketingAgreement(UserId userId, boolean agreed) {
+		getActiveUserForUpdate(userId).updateMarketingAgreement(agreed);
+	}
+
+	private User getActiveUserForUpdate(UserId userId) {
+		return userRepository.findByIdForUpdate(userId)
+				.filter(User::isActive)
 				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
 	}
 

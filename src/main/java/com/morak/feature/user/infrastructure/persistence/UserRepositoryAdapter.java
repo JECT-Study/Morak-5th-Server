@@ -20,6 +20,9 @@ public class UserRepositoryAdapter implements UserRepository {
 	public Optional<User> findById(UserId id) { return jpaRepository.findById(id.value()); }
 
 	@Override
+	public Optional<User> findByIdForUpdate(UserId id) { return jpaRepository.findLockedById(id.value()); }
+
+	@Override
 	public boolean existsByNickname(Nickname nickname) { return jpaRepository.existsByNickname(nickname.value()); }
 
 	@Override

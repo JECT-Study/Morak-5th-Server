@@ -22,14 +22,18 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = UserController.class,
@@ -192,5 +196,66 @@ class SecurityConfigTest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error.code").value("COMMON_001"));
 		verify(userRepository, never()).existsByNickname(any());
+	}
+
+	@Test
+	void recordsRequiredAgreementsAndAllowsOnlyMarketingToChangeAfterwards() throws Exception {
+		User user = userForTermsAgreements();
+		String bearer = "Bearer " + token(SECRET, Duration.ofMinutes(30));
+		String initialAgreements = """
+				{"age14OrOlder":true,"serviceTermsAgreed":true,"privacyAgreed":true,
+				 "photoCollectionAgreed":true,"marketingAgreed":false}
+				""";
+		mvc.perform(post("/users/me/terms-agreements").header("Authorization", bearer)
+						.contentType(MediaType.APPLICATION_JSON).content(initialAgreements))
+				.andExpect(status().isOk());
+		assertTrue(user.hasAgreedToTerms());
+		assertFalse(user.isMarketingAgreed());
+		Object agreedAt = ReflectionTestUtils.getField(user, "termsAgreedAt");
+
+		mvc.perform(patch("/users/me/marketing-agreements").header("Authorization", bearer)
+						.contentType(MediaType.APPLICATION_JSON).content("{\"marketingAgreed\":true}"))
+				.andExpect(status().isOk());
+		assertTrue(user.isMarketingAgreed());
+		assertEquals(agreedAt, ReflectionTestUtils.getField(user, "termsAgreedAt"));
+
+		mvc.perform(post("/users/me/terms-agreements").header("Authorization", bearer)
+						.contentType(MediaType.APPLICATION_JSON).content(initialAgreements))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error.code").value("USER_001"));
+		assertTrue(user.isMarketingAgreed());
+		assertEquals(agreedAt, ReflectionTestUtils.getField(user, "termsAgreedAt"));
+	}
+
+	@Test
+	void rejectsMarketingOnlyBeforeRequiredAgreementsAreAccepted() throws Exception {
+		User user = userForTermsAgreements();
+		mvc.perform(post("/users/me/terms-agreements")
+						.header("Authorization", "Bearer " + token(SECRET, Duration.ofMinutes(30)))
+						.contentType(MediaType.APPLICATION_JSON).content("{\"marketingAgreed\":true}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("COMMON_001"));
+		assertFalse(user.hasAgreedToTerms());
+		assertFalse(user.isMarketingAgreed());
+	}
+
+	@Test
+	void rejectsMarketingChangesBeforeRequiredAgreementsAreAccepted() throws Exception {
+		User user = userForTermsAgreements();
+		mvc.perform(patch("/users/me/marketing-agreements")
+						.header("Authorization", "Bearer " + token(SECRET, Duration.ofMinutes(30)))
+						.contentType(MediaType.APPLICATION_JSON).content("{\"marketingAgreed\":true}"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error.code").value("USER_002"));
+		assertFalse(user.isMarketingAgreed());
+	}
+
+	private User userForTermsAgreements() {
+		User user = new User(null, null);
+		ReflectionTestUtils.setField(user, "id", 7L);
+		UserId userId = new UserId(7L);
+		when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+		when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
+		return user;
 	}
 }
