@@ -1,5 +1,6 @@
 package com.morak.feature.user.infrastructure.persistence;
 
+import com.morak.feature.user.domain.vo.UserId;
 import com.morak.feature.user.domain.entity.User;
 import com.morak.feature.user.domain.repository.UserRepository;
 import java.util.Optional;
@@ -15,7 +16,7 @@ public class UserRepositoryAdapter implements UserRepository {
 	}
 
 	@Override
-	public Optional<User> findById(Long id) { return jpaRepository.findById(id); }
+	public Optional<User> findById(UserId id) { return jpaRepository.findById(id.value()); }
 
 	@Override
 	public User save(User user) { return jpaRepository.save(user); }

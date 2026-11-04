@@ -10,7 +10,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
+import com.morak.feature.auth.infrastructure.security.LoginUserJwtConverter;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -22,7 +24,21 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
+	SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper,
+			LoginUserJwtConverter loginUserJwtConverter) throws Exception {
+		AuthenticationEntryPoint entryPoint = (request, response, exception) -> {
+			response.setStatus(AuthErrorCode.AUTHENTICATION_REQUIRED.status().value());
+			response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+			response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+			objectMapper.writeValue(response.getOutputStream(), ApiResponse.failure(
+					AuthErrorCode.AUTHENTICATION_REQUIRED.code(), AuthErrorCode.AUTHENTICATION_REQUIRED.message()));
+		};
+		AccessDeniedHandler deniedHandler = (request, response, exception) -> {
+			response.setStatus(AuthErrorCode.ACCESS_DENIED.status().value());
+			response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+			objectMapper.writeValue(response.getOutputStream(), ApiResponse.failure(
+					AuthErrorCode.ACCESS_DENIED.code(), AuthErrorCode.ACCESS_DENIED.message()));
+		};
 		return http
 				.csrf(csrf -> csrf.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -31,21 +47,12 @@ public class SecurityConfig {
 						.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 						.anyRequest().authenticated())
 				.exceptionHandling(errors -> errors
-						.authenticationEntryPoint((request, response, exception) -> {
-							response.setStatus(AuthErrorCode.AUTHENTICATION_REQUIRED.status().value());
-							response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
-							response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-							objectMapper.writeValue(response.getOutputStream(), ApiResponse.failure(
-									AuthErrorCode.AUTHENTICATION_REQUIRED.code(),
-									AuthErrorCode.AUTHENTICATION_REQUIRED.message()));
-						})
-						.accessDeniedHandler((request, response, exception) -> {
-							response.setStatus(AuthErrorCode.ACCESS_DENIED.status().value());
-							response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-							objectMapper.writeValue(response.getOutputStream(), ApiResponse.failure(
-									AuthErrorCode.ACCESS_DENIED.code(), AuthErrorCode.ACCESS_DENIED.message()));
-						}))
-				.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+						.authenticationEntryPoint(entryPoint)
+						.accessDeniedHandler(deniedHandler))
+				.oauth2ResourceServer(oauth2 -> oauth2
+						.authenticationEntryPoint(entryPoint)
+						.accessDeniedHandler(deniedHandler)
+						.jwt(jwt -> jwt.jwtAuthenticationConverter(loginUserJwtConverter)))
 				.build();
 	}
 

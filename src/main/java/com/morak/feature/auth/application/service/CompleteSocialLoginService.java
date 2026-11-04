@@ -1,5 +1,6 @@
 package com.morak.feature.auth.application.service;
 
+import com.morak.feature.user.domain.vo.UserId;
 import com.morak.feature.auth.application.dto.result.AccessToken;
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.auth.application.dto.result.IssuedTokens;
@@ -11,8 +12,8 @@ import com.morak.feature.auth.domain.exception.AuthErrorCode;
 import com.morak.feature.auth.domain.exception.DuplicateSocialAccountException;
 import com.morak.feature.auth.domain.repository.RefreshTokenRepository;
 import com.morak.feature.auth.domain.repository.SocialAccountRepository;
-import com.morak.feature.user.domain.entity.User;
-import com.morak.feature.user.domain.repository.UserRepository;
+import com.morak.feature.user.application.dto.result.UserAuthInfo;
+import com.morak.feature.user.application.service.UserService;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,7 +26,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class CompleteSocialLoginService {
 
 	private final SocialAccountRepository socialAccountRepository;
-	private final UserRepository userRepository;
+	private final UserService userService;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final ServiceTokenIssuer tokenIssuer;
 	private final Duration refreshValidity;
@@ -33,13 +34,13 @@ public class CompleteSocialLoginService {
 
 	public CompleteSocialLoginService(
 			SocialAccountRepository socialAccountRepository,
-			UserRepository userRepository,
+			UserService userService,
 			RefreshTokenRepository refreshTokenRepository,
 			ServiceTokenIssuer tokenIssuer,
 			@Value("${morak.auth.jwt.refresh-token-validity}") Duration refreshValidity,
 			PlatformTransactionManager transactionManager) {
 		this.socialAccountRepository = socialAccountRepository;
-		this.userRepository = userRepository;
+		this.userService = userService;
 		this.refreshTokenRepository = refreshTokenRepository;
 		this.tokenIssuer = tokenIssuer;
 		this.refreshValidity = refreshValidity;
@@ -57,8 +58,9 @@ public class CompleteSocialLoginService {
 	}
 
 	private IssuedTokens completeLogin(SocialProfile profile, DuplicateSocialAccountException conflict) {
-		User user = socialAccountRepository.findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
-				.map(account -> userRepository.findById(account.getUserId())
+		UserAuthInfo user = socialAccountRepository.findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
+				.map(account -> userService.updateSocialProfile(
+						new UserId(account.getUserId()), profile.email(), profile.profileImageUrl())
 						.orElseThrow(() -> new BusinessException(AuthErrorCode.KAKAO_UNAVAILABLE)))
 				.orElseGet(() -> {
 					if (conflict != null) {
@@ -66,28 +68,27 @@ public class CompleteSocialLoginService {
 					}
 					return createUser(profile);
 				});
-		user.updateSocialProfile(profile.email(), profile.profileImageUrl());
-		if (!user.isActive()) {
+		if (!user.active()) {
 			throw new BusinessException(AuthErrorCode.WITHDRAWN_USER);
 		}
 
-		AccessToken accessToken = tokenIssuer.createAccessToken(user.getId(), user.isOnboarded());
+		AccessToken accessToken = tokenIssuer.createAccessToken(user.userId(), user.onboarded());
 		String refreshToken = tokenIssuer.createRefreshToken();
 		LocalDateTime now = LocalDateTime.now();
 		refreshTokenRepository.save(new RefreshToken(
-				user.getId(), tokenIssuer.hash(refreshToken), now.plus(refreshValidity)));
+				user.userId().value(), tokenIssuer.hash(refreshToken), now.plus(refreshValidity)));
 		return new IssuedTokens(
 				accessToken.value(),
 				refreshToken,
 				"Bearer",
 				tokenIssuer.accessValiditySeconds(),
 				accessToken.expiresAt(),
-				user.isOnboarded());
+				user.onboarded());
 	}
 
-	private User createUser(SocialProfile profile) {
-		User user = userRepository.save(new User(profile.email(), profile.profileImageUrl()));
-		socialAccountRepository.save(new SocialAccount(user.getId(), profile.provider(), profile.providerUserId()));
+	private UserAuthInfo createUser(SocialProfile profile) {
+		UserAuthInfo user = userService.createUser(profile.email(), profile.profileImageUrl());
+		socialAccountRepository.save(new SocialAccount(user.userId().value(), profile.provider(), profile.providerUserId()));
 		return user;
 	}
 }

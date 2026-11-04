@@ -1,5 +1,6 @@
 package com.morak.feature.auth.infrastructure.token;
 
+import com.morak.feature.user.domain.vo.UserId;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -42,11 +43,11 @@ public class ServiceTokenProvider implements ServiceTokenIssuer {
 	}
 
 	@Override
-	public AccessToken createAccessToken(Long userId, boolean onboarded) {
+	public AccessToken createAccessToken(UserId userId, boolean onboarded) {
 		Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
 		Instant expiresAt = now.plusSeconds(accessValiditySeconds);
 		JwtClaimsSet claims = JwtClaimsSet.builder()
-				.subject(userId.toString())
+				.subject(userId.value().toString())
 				.issuedAt(now)
 				.expiresAt(expiresAt)
 				.claim("onboarded", onboarded)
