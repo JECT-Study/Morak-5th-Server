@@ -57,13 +57,14 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 					request.getRequestURI(),
 					wrappedResponse.getStatus(),
 					durationMillis,
-					("/users/me/terms-agreements".equals(route) || "/users/me/marketing-agreements".equals(route))
-							? "<omitted: member agreements>"
+					("/users/me/terms-agreements".equals(route) || "/users/me/marketing-agreements".equals(route)
+							|| "/users/me/onboarding".equals(route))
+							? "<omitted: member data>"
 							: formatBody(
 									wrappedRequest.getContentAsByteArray(),
 									wrappedRequest.getContentType(),
 									wrappedRequest.getCharacterEncoding()),
-					"/users/me".equals(route)
+					("/users/me".equals(route) || "/users/me/onboarding".equals(route))
 							? "<omitted: member profile>"
 							: formatBody(
 									wrappedResponse.getContentAsByteArray(),

@@ -13,6 +13,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -248,6 +249,61 @@ class SecurityConfigTest {
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.error.code").value("USER_002"));
 		assertFalse(user.isMarketingAgreed());
+	}
+
+	@Test
+	void completesOnboardingOnceAndSavesSelectedInterests() throws Exception {
+		User user = userForTermsAgreements();
+		ReflectionTestUtils.setField(user, "termsAgreedAt", LocalDateTime.now());
+		String bearer = "Bearer " + token(SECRET, Duration.ofMinutes(30));
+		String profile = """
+				{"nickname":"Morak","bio":"안녕하세요","profileLinkUrl":"https://example.com",
+				 "interests":["STUDY","EXERCISE"]}
+				""";
+
+		mvc.perform(post("/users/me/onboarding").header("Authorization", bearer)
+						.contentType(MediaType.APPLICATION_JSON).content(profile))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.nickname").value("Morak"))
+				.andExpect(jsonPath("$.data.onboarded").value(true));
+		assertEquals("안녕하세요", user.getBio());
+		assertEquals("https://example.com", user.getProfileLinkUrl());
+		assertEquals(Set.of("STUDY", "EXERCISE"),
+				ReflectionTestUtils.getField(user, "interests"));
+
+		mvc.perform(post("/users/me/onboarding").header("Authorization", bearer)
+						.contentType(MediaType.APPLICATION_JSON).content(profile))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error.code").value("USER_003"));
+		verify(userRepository).flushOnboarding();
+	}
+
+	@Test
+	void requiresTermsBeforeCompletingOnboarding() throws Exception {
+		User user = userForTermsAgreements();
+		mvc.perform(post("/users/me/onboarding")
+						.header("Authorization", "Bearer " + token(SECRET, Duration.ofMinutes(30)))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"nickname\":\"Morak\",\"interests\":[\"EXERCISE\"]}"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error.code").value("USER_002"));
+		assertFalse(user.isOnboarded());
+		verify(userRepository, never()).flushOnboarding();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"[]", "[\"UNKNOWN\"]", "[\"EXERCISE_HEALTH\"]", "[null]"})
+	void rejectsInvalidInterestSelections(String interests) throws Exception {
+		User user = new User(null, null);
+		ReflectionTestUtils.setField(user, "id", 7L);
+		when(userRepository.findById(new UserId(7L))).thenReturn(Optional.of(user));
+		mvc.perform(post("/users/me/onboarding")
+						.header("Authorization", "Bearer " + token(SECRET, Duration.ofMinutes(30)))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"nickname\":\"Morak\",\"interests\":" + interests + "}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("COMMON_001"));
+		verify(userRepository, never()).findByIdForUpdate(any());
 	}
 
 	private User userForTermsAgreements() {

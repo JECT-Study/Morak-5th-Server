@@ -7,6 +7,7 @@ import com.morak.feature.user.application.dto.result.MyUserInfo;
 import com.morak.feature.user.application.service.UserService;
 import com.morak.feature.user.domain.vo.Nickname;
 import com.morak.feature.user.presentation.dto.request.MarketingAgreementRequest;
+import com.morak.feature.user.presentation.dto.request.OnboardingRequest;
 import com.morak.feature.user.presentation.dto.request.TermsAgreementsRequest;
 import com.morak.feature.user.presentation.dto.response.NicknameCheckResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,5 +69,15 @@ public class UserController {
 		return ResponseEntity.ok()
 				.cacheControl(CacheControl.noStore())
 				.body(ApiResponse.success(userService.getMyInfo(loginUser.userId())));
+	}
+
+	@PostMapping("/me/onboarding")
+	@Operation(summary = "온보딩 완료")
+	@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+	public ResponseEntity<ApiResponse<MyUserInfo>> completeOnboarding(
+			@AuthenticationPrincipal LoginUser loginUser, @RequestBody OnboardingRequest request) {
+		return ResponseEntity.ok()
+				.cacheControl(CacheControl.noStore())
+				.body(ApiResponse.success(userService.completeOnboarding(loginUser.userId(), request.toProfile())));
 	}
 }

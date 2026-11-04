@@ -7,6 +7,7 @@ import com.morak.feature.user.application.dto.result.UserAuthInfo;
 import com.morak.feature.user.domain.entity.User;
 import com.morak.feature.user.domain.repository.UserRepository;
 import com.morak.feature.user.domain.vo.Nickname;
+import com.morak.feature.user.domain.vo.OnboardingProfile;
 import com.morak.feature.user.domain.vo.TermsAgreements;
 import com.morak.feature.user.domain.vo.UserId;
 import java.time.LocalDateTime;
@@ -46,6 +47,14 @@ public class UserService {
 	@Transactional
 	public void updateMarketingAgreement(UserId userId, boolean agreed) {
 		getActiveUserForUpdate(userId).updateMarketingAgreement(agreed);
+	}
+
+	@Transactional
+	public MyUserInfo completeOnboarding(UserId userId, OnboardingProfile profile) {
+		User user = getActiveUserForUpdate(userId);
+		user.completeOnboarding(profile, LocalDateTime.now());
+		userRepository.flushOnboarding();
+		return MyUserInfo.from(user);
 	}
 
 	private User getActiveUserForUpdate(UserId userId) {

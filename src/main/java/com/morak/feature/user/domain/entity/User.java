@@ -4,14 +4,22 @@ import com.morak.common.entity.BaseEntity;
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.user.domain.exception.UserErrorCode;
+import com.morak.feature.user.domain.vo.Interest;
+import com.morak.feature.user.domain.vo.OnboardingProfile;
 import com.morak.feature.user.domain.vo.TermsAgreements;
 import jakarta.persistence.Column;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
+import lombok.AccessLevel;
 import lombok.Getter;
 import org.hibernate.annotations.DynamicUpdate;
 
@@ -33,6 +41,18 @@ public class User extends BaseEntity {
 
 	@Column(name = "profile_image_url", length = 500)
 	private String profileImageUrl;
+
+	@Column(length = 255)
+	private String bio;
+
+	@Column(name = "profile_link_url", length = 255)
+	private String profileLinkUrl;
+
+	@Getter(AccessLevel.NONE)
+	@ElementCollection
+	@CollectionTable(name = "user_interest", joinColumns = @JoinColumn(name = "user_id"))
+	@Column(name = "interest_code", length = 30, nullable = false)
+	private Set<String> interests = new HashSet<>();
 
 	@Column(nullable = false, length = 20)
 	private String status = "ACTIVE";
@@ -76,6 +96,21 @@ public class User extends BaseEntity {
 			throw new BusinessException(UserErrorCode.TERMS_AGREEMENT_REQUIRED);
 		}
 		marketingAgreed = agreed;
+	}
+
+	public void completeOnboarding(OnboardingProfile profile, LocalDateTime now) {
+		if (isOnboarded()) {
+			throw new BusinessException(UserErrorCode.ALREADY_ONBOARDED);
+		}
+		if (!hasAgreedToTerms()) {
+			throw new BusinessException(UserErrorCode.TERMS_AGREEMENT_REQUIRED);
+		}
+		nickname = profile.nickname().value();
+		bio = profile.bio();
+		profileLinkUrl = profile.profileLinkUrl();
+		interests.clear();
+		profile.interests().stream().map(Interest::name).forEach(interests::add);
+		onboardedAt = now;
 	}
 
 	public void updateSocialProfile(String email, String profileImageUrl) {

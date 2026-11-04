@@ -14,4 +14,6 @@ public interface UserRepository {
 	boolean existsByNickname(Nickname nickname);
 
 	User save(User user);
+
+	void flushOnboarding();
 }
