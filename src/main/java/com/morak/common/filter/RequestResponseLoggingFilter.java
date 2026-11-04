@@ -18,6 +18,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
@@ -59,10 +60,12 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 							wrappedRequest.getContentAsByteArray(),
 							wrappedRequest.getContentType(),
 							wrappedRequest.getCharacterEncoding()),
-					formatBody(
-							wrappedResponse.getContentAsByteArray(),
-							wrappedResponse.getContentType(),
-							wrappedResponse.getCharacterEncoding()));
+					"/users/me".equals(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE))
+							? "<omitted: member profile>"
+							: formatBody(
+									wrappedResponse.getContentAsByteArray(),
+									wrappedResponse.getContentType(),
+									wrappedResponse.getCharacterEncoding()));
 			wrappedResponse.copyBodyToResponse();
 		}
 	}

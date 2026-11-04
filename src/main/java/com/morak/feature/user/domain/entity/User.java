@@ -53,6 +53,8 @@ public class User extends BaseEntity {
 	public String getNickname() { return nickname; }
 	public String getProfileImageUrl() { return profileImageUrl; }
 	public LocalDateTime getOnboardedAt() { return onboardedAt; }
+	public boolean hasAgreedToTerms() { return termsAgreedAt != null; }
+	public boolean isMarketingAgreed() { return marketingAgreed; }
 	public boolean isOnboarded() { return onboardedAt != null; }
 	public boolean isActive() { return "ACTIVE".equals(status) && deletedAt == null; }
 
