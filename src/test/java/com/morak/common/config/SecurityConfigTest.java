@@ -27,6 +27,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,11 +41,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = UserController.class,
 		properties = "morak.auth.jwt.secret=01234567890123456789012345678901")
-@Import({UserService.class, AuthenticateUserService.class, SecurityConfig.class, LoginUserJwtConverter.class})
+@Import({UserService.class, AuthenticateUserService.class, SecurityConfig.class, LoginUserJwtConverter.class,
+		SecurityConfigTest.OnboardedOnlyController.class})
 @ExtendWith(OutputCaptureExtension.class)
 class SecurityConfigTest {
 
 	private static final String SECRET = "01234567890123456789012345678901";
+
+	@RestController
+	static class OnboardedOnlyController {
+		@GetMapping("/test/onboarded-only")
+		String get() { return "ok"; }
+	}
 
 	@Autowired
 	private MockMvc mvc;
@@ -117,6 +126,24 @@ class SecurityConfigTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.userId").value(7))
 				.andExpect(jsonPath("$.data.onboarded").value(true));
+	}
+
+	@Test
+	void requiresOnboardingForOtherRoutesUsingCurrentDatabaseState() throws Exception {
+		User user = new User(null, null);
+		ReflectionTestUtils.setField(user, "id", 7L);
+		when(userRepository.findById(new UserId(7L))).thenReturn(Optional.of(user));
+		String bearer = "Bearer " + token(SECRET, Duration.ofMinutes(30));
+
+		mvc.perform(get("/test/onboarded-only")).andExpect(status().isUnauthorized());
+		mvc.perform(get("/test/onboarded-only").header("Authorization", bearer))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error.code").value("AUTH_005"));
+
+		ReflectionTestUtils.setField(user, "onboardedAt", LocalDateTime.now());
+		mvc.perform(get("/test/onboarded-only").header("Authorization", bearer))
+				.andExpect(status().isOk())
+				.andExpect(content().string("ok"));
 	}
 
 	private void assertUnauthorized(String token) throws Exception {
