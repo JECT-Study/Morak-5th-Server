@@ -10,7 +10,8 @@ public enum ChatErrorCode implements ErrorCode {
 	MESSAGE_NOT_FOUND("CHAT_004", "메시지를 찾을 수 없습니다.", HttpStatus.NOT_FOUND),
 	INVALID_CURSOR("CHAT_005", "before와 after는 함께 사용할 수 없습니다.", HttpStatus.BAD_REQUEST),
 	INVALID_MESSAGE("CHAT_006", "메시지는 1자 이상 1000자 이하여야 합니다.", HttpStatus.BAD_REQUEST),
-	NOT_IMPLEMENTED("CHAT_007", "아직 지원하지 않는 기능입니다.", HttpStatus.NOT_IMPLEMENTED);
+	NOT_IMPLEMENTED("CHAT_007", "아직 지원하지 않는 기능입니다.", HttpStatus.NOT_IMPLEMENTED),
+	INVALID_TICKET("CHAT_008", "유효하지 않거나 만료된 채팅 연결 티켓입니다.", HttpStatus.UNAUTHORIZED);
 
 	private final String code;
 	private final String message;
