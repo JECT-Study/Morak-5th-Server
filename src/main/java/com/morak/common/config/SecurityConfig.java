@@ -29,6 +29,8 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers("/auth/login/**").permitAll()
 						.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+						// 웹소켓 핸드셰이크에는 JWT가 없다. 인증은 STOMP CONNECT의 1회용 티켓으로 한다.
+						.requestMatchers("/ws").permitAll()
 						.anyRequest().authenticated())
 				.exceptionHandling(errors -> errors
 						.authenticationEntryPoint((request, response, exception) -> {
