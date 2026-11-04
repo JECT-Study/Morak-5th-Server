@@ -1,5 +1,6 @@
 package com.morak.common.config;
 
+import com.morak.feature.user.domain.vo.Nickname;
 import com.morak.feature.user.domain.vo.UserId;
 import com.morak.feature.auth.application.service.AuthenticateUserService;
 import com.morak.feature.auth.infrastructure.security.LoginUserJwtConverter;
@@ -161,4 +162,35 @@ class SecurityConfigTest {
 		assertFalse(output.getAll().contains(email));
 	}
 
+
+	@Test
+	void nicknameAvailabilityUsesExactCase() throws Exception {
+		User user = new User(null, null);
+		ReflectionTestUtils.setField(user, "id", 7L);
+		when(userRepository.findById(new UserId(7L))).thenReturn(Optional.of(user));
+		when(userRepository.existsByNickname(new Nickname("Morak"))).thenReturn(true);
+		String bearer = "Bearer " + token(SECRET, Duration.ofMinutes(30));
+
+		mvc.perform(get("/users/nickname-check").param("nickname", "Morak").header("Authorization", bearer))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.available").value(false));
+		mvc.perform(get("/users/nickname-check").param("nickname", "morak").header("Authorization", bearer))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.available").value(true));
+		verify(userRepository).existsByNickname(new Nickname("morak"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"A", "abcdefghijklm", "Mo rak", "Morak!"})
+	void invalidNicknameDoesNotQueryAvailability(String nickname) throws Exception {
+		User user = new User(null, null);
+		ReflectionTestUtils.setField(user, "id", 7L);
+		when(userRepository.findById(new UserId(7L))).thenReturn(Optional.of(user));
+
+		mvc.perform(get("/users/nickname-check").param("nickname", nickname)
+						.header("Authorization", "Bearer " + token(SECRET, Duration.ofMinutes(30))))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("COMMON_001"));
+		verify(userRepository, never()).existsByNickname(any());
+	}
 }

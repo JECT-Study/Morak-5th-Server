@@ -6,6 +6,7 @@ import com.morak.feature.user.application.dto.result.MyUserInfo;
 import com.morak.feature.user.application.dto.result.UserAuthInfo;
 import com.morak.feature.user.domain.entity.User;
 import com.morak.feature.user.domain.repository.UserRepository;
+import com.morak.feature.user.domain.vo.Nickname;
 import com.morak.feature.user.domain.vo.UserId;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,10 @@ public class UserService {
 
 	public Optional<UserAuthInfo> findUser(UserId userId) {
 		return userRepository.findById(userId).map(UserAuthInfo::from);
+	}
+
+	public boolean isNicknameAvailable(Nickname nickname) {
+		return !userRepository.existsByNickname(nickname);
 	}
 
 	public MyUserInfo getMyInfo(UserId userId) {
