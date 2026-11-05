@@ -2,6 +2,7 @@ package com.morak.feature.user.domain.vo;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
+import java.net.IDN;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.List;
@@ -33,15 +34,31 @@ public record OnboardingProfile(Nickname nickname, String bio, String profileLin
 	}
 
 	private static boolean isValidProfileLink(String value) {
-		if (value.length() > 255) {
+		if (value.codePointCount(0, value.length()) > 255) {
 			return false;
 		}
 		try {
 			URI uri = URI.create(value);
-			return uri.getHost() != null
-					&& ("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()));
+			return ("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
+					&& (uri.getHost() != null || hasValidInternationalHost(uri.getRawAuthority()));
 		} catch (IllegalArgumentException exception) {
 			return false;
 		}
+	}
+
+	private static boolean hasValidInternationalHost(String authority) {
+		if (authority == null) {
+			return false;
+		}
+		int hostStart = authority.indexOf('@') + 1;
+		int portStart = authority.indexOf(':', hostStart);
+		int hostEnd = portStart < 0 ? authority.length() : portStart;
+		String host = authority.substring(hostStart, hostEnd);
+		if (host.chars().allMatch(character -> character <= 0x7f)) {
+			return false;
+		}
+		String asciiHost = IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES);
+		String asciiAuthority = authority.substring(0, hostStart) + asciiHost + authority.substring(hostEnd);
+		return URI.create("https://" + asciiAuthority).getHost() != null;
 	}
 }

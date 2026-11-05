@@ -234,7 +234,7 @@ class SecurityConfigTest {
 		String bearer = "Bearer " + token(SECRET, Duration.ofMinutes(30));
 		String initialAgreements = """
 				{"age14OrOlder":true,"serviceTermsAgreed":true,"privacyAgreed":true,
-				 "photoCollectionAgreed":true,"marketingAgreed":false}
+				"photoCollectionAgreed":true,"marketingAgreed":false}
 				""";
 		mvc.perform(post("/users/me/terms-agreements").header("Authorization", bearer)
 						.contentType(MediaType.APPLICATION_JSON).content(initialAgreements))
@@ -280,15 +280,16 @@ class SecurityConfigTest {
 		assertFalse(user.isMarketingAgreed());
 	}
 
-	@Test
-	void completesOnboardingOnceAndSavesSelectedInterests() throws Exception {
+	@ParameterizedTest
+	@ValueSource(strings = {"https://example.com", "https://한글.com"})
+	void completesOnboardingOnceAndSavesSelectedInterests(String profileLinkUrl) throws Exception {
 		User user = userForTermsAgreements();
 		ReflectionTestUtils.setField(user, "termsAgreedAt", LocalDateTime.now());
 		String bearer = "Bearer " + token(SECRET, Duration.ofMinutes(30));
 		String profile = """
-				{"nickname":"Morak","bio":"안녕하세요","profileLinkUrl":"https://example.com",
-				 "interests":["STUDY","EXERCISE"]}
-				""";
+				{"nickname":"Morak","bio":"안녕하세요","profileLinkUrl":"%s",
+				"interests":["STUDY","EXERCISE"]}
+				""".formatted(profileLinkUrl);
 
 		mvc.perform(post("/users/me/onboarding").header("Authorization", bearer)
 						.contentType(MediaType.APPLICATION_JSON).content(profile))
@@ -296,7 +297,7 @@ class SecurityConfigTest {
 				.andExpect(jsonPath("$.data.nickname").value("Morak"))
 				.andExpect(jsonPath("$.data.onboarded").value(true));
 		assertEquals("안녕하세요", user.getBio());
-		assertEquals("https://example.com", user.getProfileLinkUrl());
+		assertEquals(profileLinkUrl, user.getProfileLinkUrl());
 		assertEquals(Set.of("STUDY", "EXERCISE"),
 				ReflectionTestUtils.getField(user, "interests"));
 
