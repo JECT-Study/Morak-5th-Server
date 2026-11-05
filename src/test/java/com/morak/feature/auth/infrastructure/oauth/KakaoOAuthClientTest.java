@@ -37,7 +37,7 @@ class KakaoOAuthClientTest {
 	}
 
 	@Test
-	void rejectsMalformedUserIds() {
+	void rejectsMalformedLongs() {
 		for (String profile : new String[] {"{}", "{\"id\":null}", "{\"id\":\"\"}", "{\"id\":\"123\"}", "{\"id\":1.5}"}) {
 			expectProfile(profile);
 			OAuthProviderException exception = assertThrows(OAuthProviderException.class, () -> client.getProfile("code"));

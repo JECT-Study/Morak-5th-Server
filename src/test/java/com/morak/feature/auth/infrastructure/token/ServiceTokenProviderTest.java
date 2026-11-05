@@ -1,8 +1,8 @@
 package com.morak.feature.auth.infrastructure.token;
 
-import com.morak.feature.user.domain.vo.UserId;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.morak.feature.auth.application.dto.result.AccessToken;
+import com.morak.feature.auth.domain.vo.AuthUserId;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -14,7 +14,7 @@ class ServiceTokenProviderTest {
 	@Test
 	void expirationMatchesJwtClaim() throws Exception {
 		ServiceTokenProvider provider = new ServiceTokenProvider(SECRET, Duration.ofMinutes(30));
-		AccessToken token = provider.createAccessToken(new UserId(42L), false);
+		AccessToken token = provider.createAccessToken(new AuthUserId(42L), false);
 		JWTClaimsSet jwt = com.nimbusds.jwt.SignedJWT.parse(token.value()).getJWTClaimsSet();
 		assertEquals(jwt.getExpirationTime().toInstant(), token.expiresAt());
 		assertEquals(1800, Duration.between(jwt.getIssueTime().toInstant(), token.expiresAt()).toSeconds());

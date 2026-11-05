@@ -3,7 +3,7 @@ package com.morak.feature.auth.infrastructure.security;
 import com.morak.feature.auth.application.dto.result.LoginUser;
 import com.morak.feature.auth.application.exception.InvalidLoginUserException;
 import com.morak.feature.auth.application.service.AuthenticateUserService;
-import com.morak.feature.user.domain.vo.UserId;
+import com.morak.feature.auth.domain.vo.AuthUserId;
 import java.util.List;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -24,7 +24,7 @@ public class LoginUserJwtConverter implements Converter<Jwt, AbstractAuthenticat
 	@Override
 	public AbstractAuthenticationToken convert(Jwt jwt) {
 		try {
-			UserId userId = new UserId(Long.valueOf(jwt.getSubject()));
+			AuthUserId userId = new AuthUserId(Long.parseLong(jwt.getSubject()));
 			LoginUser user = authenticateUserService.authenticate(userId);
 			return UsernamePasswordAuthenticationToken.authenticated(user, null, List.of());
 		} catch (IllegalArgumentException | InvalidLoginUserException exception) {

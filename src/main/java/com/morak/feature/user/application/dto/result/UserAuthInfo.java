@@ -5,6 +5,6 @@ import com.morak.feature.user.domain.vo.UserId;
 
 public record UserAuthInfo(UserId userId, boolean active, boolean onboarded) {
 	public static UserAuthInfo from(User user) {
-		return new UserAuthInfo(new UserId(user.getId()), user.isActive(), user.isOnboarded());
+		return new UserAuthInfo(user.userId(), user.isActive(), user.isOnboarded());
 	}
 }

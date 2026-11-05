@@ -3,6 +3,7 @@ package com.morak.feature.user.presentation.controller;
 import com.morak.common.config.OpenApiConfig;
 import com.morak.common.response.ApiResponse;
 import com.morak.feature.auth.application.dto.result.LoginUser;
+import com.morak.feature.user.domain.vo.UserId;
 import com.morak.feature.user.application.dto.result.MyUserInfo;
 import com.morak.feature.user.application.service.UserService;
 import com.morak.feature.user.domain.vo.Nickname;
@@ -50,7 +51,7 @@ public class UserController {
 	@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 	public ApiResponse<Map<String, Object>> agreeToTerms(
 			@AuthenticationPrincipal LoginUser loginUser, @Valid @RequestBody TermsAgreementsRequest request) {
-		userService.agreeToTerms(loginUser.userId(), request.toAgreements());
+		userService.agreeToTerms(new UserId(loginUser.userId().value()), request.toAgreements());
 		return ApiResponse.successEmpty();
 	}
 
@@ -59,7 +60,7 @@ public class UserController {
 	@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 	public ApiResponse<Map<String, Object>> updateMarketingAgreement(
 			@AuthenticationPrincipal LoginUser loginUser, @Valid @RequestBody MarketingAgreementRequest request) {
-		userService.updateMarketingAgreement(loginUser.userId(), request.marketingAgreed());
+		userService.updateMarketingAgreement(new UserId(loginUser.userId().value()), request.marketingAgreed());
 		return ApiResponse.successEmpty();
 	}
 
@@ -68,7 +69,7 @@ public class UserController {
 	public ResponseEntity<ApiResponse<MyUserInfo>> getMe(@AuthenticationPrincipal LoginUser loginUser) {
 		return ResponseEntity.ok()
 				.cacheControl(CacheControl.noStore())
-				.body(ApiResponse.success(userService.getMyInfo(loginUser.userId())));
+				.body(ApiResponse.success(userService.getMyInfo(new UserId(loginUser.userId().value()))));
 	}
 
 	@PostMapping("/me/onboarding")
@@ -78,6 +79,6 @@ public class UserController {
 			@AuthenticationPrincipal LoginUser loginUser, @RequestBody OnboardingRequest request) {
 		return ResponseEntity.ok()
 				.cacheControl(CacheControl.noStore())
-				.body(ApiResponse.success(userService.completeOnboarding(loginUser.userId(), request.toProfile())));
+				.body(ApiResponse.success(userService.completeOnboarding(new UserId(loginUser.userId().value()), request.toProfile())));
 	}
 }

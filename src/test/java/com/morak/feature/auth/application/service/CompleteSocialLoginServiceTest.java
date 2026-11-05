@@ -1,6 +1,5 @@
 package com.morak.feature.auth.application.service;
 
-import com.morak.feature.user.domain.vo.UserId;
 import org.mockito.InOrder;
 import com.morak.feature.auth.application.dto.result.IssuedTokens;
 import com.morak.feature.auth.application.dto.result.AccessToken;
@@ -10,8 +9,9 @@ import com.morak.feature.auth.domain.entity.SocialAccount;
 import com.morak.feature.auth.domain.exception.DuplicateSocialAccountException;
 import com.morak.feature.auth.domain.repository.RefreshTokenRepository;
 import com.morak.feature.auth.domain.repository.SocialAccountRepository;
-import com.morak.feature.user.application.dto.result.UserAuthInfo;
-import com.morak.feature.user.application.service.UserService;
+import com.morak.feature.auth.application.port.out.UserAuthPort;
+import com.morak.feature.auth.application.port.out.UserAuthPort.UserState;
+import com.morak.feature.auth.domain.vo.AuthUserId;
 import java.time.Duration;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -27,7 +27,7 @@ import static org.mockito.ArgumentMatchers.*;
 class CompleteSocialLoginServiceTest {
 
 	private final SocialAccountRepository accounts = mock(SocialAccountRepository.class);
-	private final UserService users = mock(UserService.class);
+	private final UserAuthPort users = mock(UserAuthPort.class);
 	private final RefreshTokenRepository refreshTokens = mock(RefreshTokenRepository.class);
 	private final ServiceTokenIssuer tokens = mock(ServiceTokenIssuer.class);
 	private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
@@ -40,7 +40,7 @@ class CompleteSocialLoginServiceTest {
 
 	CompleteSocialLoginServiceTest() {
 		when(transactions.getTransaction(any())).thenReturn(first, recovery);
-		when(users.createUser(profile.email(), null)).thenReturn(new UserAuthInfo(new UserId(41L), true, false));
+		when(users.createUser(profile.email(), null)).thenReturn(new UserState(new AuthUserId(41L), true, false));
 		when(accounts.findByProviderAndProviderUserId("KAKAO", "123")).thenReturn(Optional.empty());
 	}
 
@@ -49,9 +49,9 @@ class CompleteSocialLoginServiceTest {
 		when(accounts.findByProviderAndProviderUserId("KAKAO", "123"))
 				.thenReturn(Optional.empty(), Optional.of(new SocialAccount(42L, "KAKAO", "123")));
 		when(accounts.save(any())).thenThrow(conflict);
-		when(users.updateSocialProfile(new UserId(42L), profile.email(), null))
-				.thenReturn(Optional.of(new UserAuthInfo(new UserId(42L), true, false)));
-		when(tokens.createAccessToken(new UserId(42L), false)).thenReturn(new AccessToken(
+		when(users.updateSocialProfile(new AuthUserId(42L), profile.email(), null))
+				.thenReturn(Optional.of(new UserState(new AuthUserId(42L), true, false)));
+		when(tokens.createAccessToken(new AuthUserId(42L), false)).thenReturn(new AccessToken(
 				"access", java.time.Instant.parse("2026-11-02T12:30:00Z")));
 		when(tokens.createRefreshToken()).thenReturn("refresh");
 
@@ -69,8 +69,8 @@ class CompleteSocialLoginServiceTest {
 		order.verify(transactions).getTransaction(argThat(definition ->
 				definition.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRES_NEW));
 		order.verify(accounts).findByProviderAndProviderUserId("KAKAO", "123");
-		order.verify(users).updateSocialProfile(new UserId(42L), profile.email(), null);
-		order.verify(tokens).createAccessToken(new UserId(42L), false);
+		order.verify(users).updateSocialProfile(new AuthUserId(42L), profile.email(), null);
+		order.verify(tokens).createAccessToken(new AuthUserId(42L), false);
 		order.verify(transactions).commit(recovery);
 		verify(accounts, times(1)).save(any());
 		verify(refreshTokens).save(any());
@@ -96,15 +96,15 @@ class CompleteSocialLoginServiceTest {
 		verifyNoInteractions(tokens, refreshTokens);
 	}
 	@Test
-	void createsNewUserThroughUserServiceBeforeLinkingSocialAccount() {
-		when(tokens.createAccessToken(new UserId(41L), false)).thenReturn(new AccessToken(
+	void createsNewUserThroughUserAuthPortBeforeLinkingSocialAccount() {
+		when(tokens.createAccessToken(new AuthUserId(41L), false)).thenReturn(new AccessToken(
 				"access", java.time.Instant.parse("2026-11-02T12:30:00Z")));
 		when(tokens.createRefreshToken()).thenReturn("refresh");
 		assertEquals("access", service.login(profile).accessToken());
 		InOrder order = inOrder(users, accounts, tokens, transactions);
 		order.verify(users).createUser(profile.email(), null);
 		order.verify(accounts).save(argThat(account -> account.getUserId().equals(41L)));
-		order.verify(tokens).createAccessToken(new UserId(41L), false);
+		order.verify(tokens).createAccessToken(new AuthUserId(41L), false);
 		order.verify(transactions).commit(first);
 	}
 
@@ -112,8 +112,8 @@ class CompleteSocialLoginServiceTest {
 	void rejectsWithdrawnUserWithoutIssuingTokens() {
 		when(accounts.findByProviderAndProviderUserId("KAKAO", "123"))
 				.thenReturn(Optional.of(new SocialAccount(42L, "KAKAO", "123")));
-		when(users.updateSocialProfile(new UserId(42L), profile.email(), null))
-				.thenReturn(Optional.of(new UserAuthInfo(new UserId(42L), false, false)));
+		when(users.updateSocialProfile(new AuthUserId(42L), profile.email(), null))
+				.thenReturn(Optional.of(new UserState(new AuthUserId(42L), false, false)));
 		var failure = assertThrows(com.morak.common.exception.BusinessException.class, () -> service.login(profile));
 		assertEquals(com.morak.feature.auth.domain.exception.AuthErrorCode.WITHDRAWN_USER, failure.getErrorCode());
 		verify(transactions).rollback(first);

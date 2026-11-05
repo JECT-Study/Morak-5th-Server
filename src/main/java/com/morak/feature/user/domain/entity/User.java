@@ -7,6 +7,7 @@ import com.morak.feature.user.domain.exception.UserErrorCode;
 import com.morak.feature.user.domain.vo.Interest;
 import com.morak.feature.user.domain.vo.OnboardingProfile;
 import com.morak.feature.user.domain.vo.TermsAgreements;
+import com.morak.feature.user.domain.vo.UserId;
 import jakarta.persistence.Column;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.ElementCollection;
@@ -76,6 +77,7 @@ public class User extends BaseEntity {
 		this.profileImageUrl = profileImageUrl;
 	}
 
+	public UserId userId() { return new UserId(id); }
 	public boolean hasAgreedToTerms() { return termsAgreedAt != null; }
 	public boolean isOnboarded() { return onboardedAt != null; }
 	public boolean isActive() { return "ACTIVE".equals(status) && deletedAt == null; }

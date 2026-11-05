@@ -12,7 +12,7 @@ public record MyUserInfo(
 		boolean onboarded) {
 
 	public static MyUserInfo from(User user) {
-		return new MyUserInfo(user.getId(), user.getEmail(), user.getNickname(), user.getProfileImageUrl(),
+		return new MyUserInfo(user.userId().value(), user.getEmail(), user.getNickname(), user.getProfileImageUrl(),
 				user.hasAgreedToTerms(), user.isMarketingAgreed(), user.isOnboarded());
 	}
 }

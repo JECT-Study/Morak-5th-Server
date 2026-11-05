@@ -1,9 +1,11 @@
 package com.morak.common.config;
 
 import com.morak.feature.user.domain.vo.Nickname;
+import com.morak.feature.auth.domain.vo.AuthUserId;
 import com.morak.feature.user.domain.vo.UserId;
 import com.morak.feature.auth.application.service.AuthenticateUserService;
 import com.morak.feature.auth.infrastructure.security.LoginUserJwtConverter;
+import com.morak.feature.auth.infrastructure.user.UserAuthAdapter;
 import com.morak.feature.auth.infrastructure.token.ServiceTokenProvider;
 import com.morak.feature.user.application.service.UserService;
 import com.morak.feature.user.domain.entity.User;
@@ -41,7 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(controllers = UserController.class,
 		properties = "morak.auth.jwt.secret=01234567890123456789012345678901")
-@Import({UserService.class, AuthenticateUserService.class, SecurityConfig.class, LoginUserJwtConverter.class,
+@Import({UserService.class, UserAuthAdapter.class, AuthenticateUserService.class, SecurityConfig.class, LoginUserJwtConverter.class,
 		SecurityConfigTest.OnboardedOnlyController.class})
 @ExtendWith(OutputCaptureExtension.class)
 class SecurityConfigTest {
@@ -154,7 +156,7 @@ class SecurityConfigTest {
 	}
 
 	private String token(String secret, Duration validity) {
-		return new ServiceTokenProvider(secret, validity).createAccessToken(new UserId(7L), false).value();
+		return new ServiceTokenProvider(secret, validity).createAccessToken(new AuthUserId(7L), false).value();
 	}
 
 	@Test

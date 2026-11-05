@@ -2,10 +2,13 @@ package com.morak.feature.auth.infrastructure.security;
 
 import com.morak.feature.auth.application.dto.result.LoginUser;
 import com.morak.feature.auth.application.service.AuthenticateUserService;
+import com.morak.feature.auth.infrastructure.user.UserAuthAdapter;
+import com.morak.feature.user.application.service.UserService;
 
-import com.morak.feature.user.domain.vo.UserId;
 import com.morak.feature.user.domain.entity.User;
 import com.morak.feature.user.domain.repository.UserRepository;
+import com.morak.feature.auth.domain.vo.AuthUserId;
+import com.morak.feature.user.domain.vo.UserId;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -22,7 +25,8 @@ import static org.mockito.Mockito.*;
 class LoginUserJwtConverterTest {
 
 	private final UserRepository repository = mock(UserRepository.class);
-	private final LoginUserJwtConverter converter = new LoginUserJwtConverter(new AuthenticateUserService(new com.morak.feature.user.application.service.UserService(repository)));
+	private final LoginUserJwtConverter converter =
+			new LoginUserJwtConverter(new AuthenticateUserService(new UserAuthAdapter(new UserService(repository))));
 
 	@ParameterizedTest
 	@NullSource
@@ -39,7 +43,7 @@ class LoginUserJwtConverterTest {
 		when(repository.findById(new UserId(7L))).thenReturn(Optional.of(user));
 		var authentication = converter.convert(jwt("7"));
 		assertTrue(authentication.isAuthenticated());
-		assertEquals(new LoginUser(new UserId(7L), false), authentication.getPrincipal());
+		assertEquals(new LoginUser(new AuthUserId(7L), false), authentication.getPrincipal());
 		assertEquals("7", authentication.getName());
 		assertNull(authentication.getCredentials());
 	}
