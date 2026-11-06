@@ -1,6 +1,7 @@
 package com.morak.feature.chat.presentation.controller;
 
 import com.morak.common.response.ApiResponse;
+import com.morak.feature.auth.application.dto.result.LoginUser;
 import com.morak.feature.chat.application.service.ChatMessageService;
 import com.morak.feature.chat.application.service.ChatTicketService;
 import com.morak.feature.chat.presentation.dto.response.ChatMessageResponse;
@@ -12,7 +13,6 @@ import java.util.List;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,10 +34,10 @@ public class ChatController {
 	@PostMapping("/chat/ws-ticket")
 	@Operation(summary = "웹소켓 연결 티켓 발급",
 			description = "BFF가 호출합니다. 30초 동안 1번만 쓸 수 있는 티켓을 반환하며, 브라우저는 /ws 연결 후 STOMP CONNECT 헤더 ticket으로 전달합니다.")
-	public ResponseEntity<ApiResponse<ChatTicketResponse>> issueTicket(@AuthenticationPrincipal Jwt jwt) {
+	public ResponseEntity<ApiResponse<ChatTicketResponse>> issueTicket(@AuthenticationPrincipal LoginUser loginUser) {
 		return ResponseEntity.ok()
 				.cacheControl(CacheControl.noStore())
-				.body(ApiResponse.success(ChatTicketResponse.from(chatTicketService.issue(userId(jwt)))));
+				.body(ApiResponse.success(ChatTicketResponse.from(chatTicketService.issue(userId(loginUser)))));
 	}
 
 	@GetMapping("/challenges/{challengeId}/chat/messages")
@@ -45,19 +45,19 @@ public class ChatController {
 			description = "id 오름차순으로 반환합니다. before(이전 메시지), after(새 메시지) 커서 중 하나만 사용할 수 있고, 둘 다 없으면 최신 메시지부터 조회합니다. "
 					+ "메시지 전송과 실시간 수신은 STOMP이며 docs/api/chat-api.md를 참고하세요.")
 	public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> list(
-			@AuthenticationPrincipal Jwt jwt,
+			@AuthenticationPrincipal LoginUser loginUser,
 			@PathVariable Long challengeId,
 			@Parameter(description = "이 id보다 오래된 메시지") @RequestParam(required = false) Long before,
 			@Parameter(description = "이 id보다 새로운 메시지") @RequestParam(required = false) Long after,
 			@Parameter(description = "조회 개수 (기본 30, 최대 100)") @RequestParam(required = false) Integer limit) {
 		List<ChatMessageResponse> messages = chatMessageService
-				.list(challengeId, userId(jwt), before, after, limit).stream()
+				.list(challengeId, userId(loginUser), before, after, limit).stream()
 				.map(ChatMessageResponse::from)
 				.toList();
 		return ResponseEntity.ok(ApiResponse.success(messages));
 	}
 
-	private Long userId(Jwt jwt) {
-		return Long.valueOf(jwt.getSubject());
+	private Long userId(LoginUser loginUser) {
+		return loginUser.userId().value();
 	}
 }
