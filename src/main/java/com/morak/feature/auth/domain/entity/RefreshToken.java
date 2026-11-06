@@ -36,6 +36,18 @@ public class RefreshToken {
 
 	protected RefreshToken() {}
 
+	public Long getUserId() { return userId; }
+
+	public boolean isUsableAt(LocalDateTime now) {
+		return revokedAt == null && expiresAt.isAfter(now);
+	}
+
+	public void revoke(LocalDateTime now) {
+		if (revokedAt == null) {
+			revokedAt = now;
+		}
+	}
+
 	public RefreshToken(Long userId, String tokenHash, LocalDateTime expiresAt) {
 		this.userId = userId;
 		this.tokenHash = tokenHash;
