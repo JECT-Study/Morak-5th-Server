@@ -9,12 +9,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
-import java.util.Map;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,7 +42,8 @@ public class ChatController {
 
 	@GetMapping("/challenges/{challengeId}/chat/messages")
 	@Operation(summary = "채팅 메시지 조회",
-			description = "id 오름차순으로 반환합니다. before(이전 메시지), after(새 메시지) 커서 중 하나만 사용할 수 있고, 둘 다 없으면 최신 메시지부터 조회합니다.")
+			description = "id 오름차순으로 반환합니다. before(이전 메시지), after(새 메시지) 커서 중 하나만 사용할 수 있고, 둘 다 없으면 최신 메시지부터 조회합니다. "
+					+ "메시지 전송과 실시간 수신은 STOMP이며 docs/api/chat-api.md를 참고하세요.")
 	public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> list(
 			@AuthenticationPrincipal Jwt jwt,
 			@PathVariable Long challengeId,
@@ -56,14 +55,6 @@ public class ChatController {
 				.map(ChatMessageResponse::from)
 				.toList();
 		return ResponseEntity.ok(ApiResponse.success(messages));
-	}
-
-	@DeleteMapping("/chat/messages/{messageId}")
-	@Operation(summary = "채팅 메시지 삭제 (미구현)", description = "작성자·방장만 가능 예정. 현재는 501을 반환합니다.")
-	public ResponseEntity<ApiResponse<Map<String, Object>>> delete(
-			@AuthenticationPrincipal Jwt jwt, @PathVariable Long messageId) {
-		chatMessageService.delete(messageId, userId(jwt));
-		return ResponseEntity.ok(ApiResponse.successEmpty());
 	}
 
 	private Long userId(Jwt jwt) {

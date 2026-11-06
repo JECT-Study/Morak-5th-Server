@@ -27,6 +27,8 @@ public class ChatStompConfig implements WebSocketMessageBrokerConfigurer {
 	@Override
 	public void configureClientInboundChannel(ChannelRegistration registration) {
 		registration.interceptors(
-				new ChatConnectInterceptor(ticketService), new ChatSubscribeInterceptor(subscriptionService));
+				new ChatConnectInterceptor(ticketService),
+				new ChatSubscribeInterceptor(subscriptionService),
+				new ChatSendInterceptor());
 	}
 }

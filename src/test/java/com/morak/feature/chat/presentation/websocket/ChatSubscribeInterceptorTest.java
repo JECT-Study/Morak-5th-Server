@@ -115,7 +115,7 @@ class ChatSubscribeInterceptorTest {
 		}
 
 		@Override
-		public Map<Long, Long> findUserIdsByParticipationIds(Collection<Long> participationIds) {
+		public Map<Long, ChatSender> findSenders(Collection<Long> participationIds) {
 			return Map.of();
 		}
 
