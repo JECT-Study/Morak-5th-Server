@@ -18,6 +18,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
@@ -49,20 +50,26 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 			filterChain.doFilter(wrappedRequest, wrappedResponse);
 		} finally {
 			long durationMillis = (System.nanoTime() - startedAt) / 1_000_000;
+			Object route = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
 			log.info(
 					"HTTP {} {} status={} durationMs={} request={} response={}",
 					request.getMethod(),
 					request.getRequestURI(),
 					wrappedResponse.getStatus(),
 					durationMillis,
-					formatBody(
-							wrappedRequest.getContentAsByteArray(),
-							wrappedRequest.getContentType(),
-							wrappedRequest.getCharacterEncoding()),
-					formatBody(
-							wrappedResponse.getContentAsByteArray(),
-							wrappedResponse.getContentType(),
-							wrappedResponse.getCharacterEncoding()));
+					("/users/me/terms-agreements".equals(route) || "/users/me/marketing-agreements".equals(route)
+							|| "/users/me/onboarding".equals(route))
+							? "<omitted: member data>"
+							: formatBody(
+									wrappedRequest.getContentAsByteArray(),
+									wrappedRequest.getContentType(),
+									wrappedRequest.getCharacterEncoding()),
+					("/users/me".equals(route) || "/users/me/onboarding".equals(route))
+							? "<omitted: member profile>"
+							: formatBody(
+									wrappedResponse.getContentAsByteArray(),
+									wrappedResponse.getContentType(),
+									wrappedResponse.getCharacterEncoding()));
 			wrappedResponse.copyBodyToResponse();
 		}
 	}

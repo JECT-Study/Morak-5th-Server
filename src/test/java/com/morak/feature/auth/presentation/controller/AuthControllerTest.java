@@ -2,6 +2,7 @@ package com.morak.feature.auth.presentation.controller;
 
 import com.morak.feature.auth.application.dto.command.SocialLoginCommand;
 import com.morak.feature.auth.application.dto.result.IssuedTokens;
+import com.morak.feature.auth.application.service.AuthenticateUserService;
 import com.morak.feature.auth.application.service.KakaoLoginService;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,9 @@ class AuthControllerTest {
 
 	@MockitoBean
 	private KakaoLoginService loginService;
+
+	@MockitoBean
+	private AuthenticateUserService authenticateUserService;
 
 	@Test
 	void serializesExpirationAsUtcIso8601AndPreservesExistingFields() throws Exception {
