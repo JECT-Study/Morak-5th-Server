@@ -4,6 +4,7 @@ import com.morak.feature.chat.domain.entity.ChatMessage;
 import com.morak.feature.chat.domain.repository.ChatMessageRepository;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
@@ -24,6 +25,11 @@ public class ChatMessageRepositoryAdapter implements ChatMessageRepository {
 	@Override
 	public Optional<ChatMessage> findById(Long id) {
 		return jpaRepository.findById(id);
+	}
+
+	@Override
+	public Optional<ChatMessage> findByParticipationIdAndClientMessageId(Long participationId, UUID clientMessageId) {
+		return jpaRepository.findByParticipationIdAndClientMessageId(participationId, clientMessageId);
 	}
 
 	@Override

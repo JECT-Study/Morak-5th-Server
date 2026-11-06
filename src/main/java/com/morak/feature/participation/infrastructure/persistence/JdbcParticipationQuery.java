@@ -1,6 +1,8 @@
 package com.morak.feature.participation.infrastructure.persistence;
 
 import com.morak.feature.participation.application.query.ParticipationQuery;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,26 +24,35 @@ public class JdbcParticipationQuery implements ParticipationQuery {
 	public Optional<ParticipantInfo> findJoinedParticipant(Long challengeId, Long userId) {
 		return jdbc.sql("""
 				SELECT id, user_id, role, status FROM morak.participation
-				WHERE challenge_id = :challengeId AND user_id = :userId AND status IN ('ACTIVE', 'COMPLETED')
+				WHERE challenge_id = :challengeId AND user_id = :userId
+				AND status IN ('ACTIVE', 'EXPEL_NOTICED', 'COMPLETED')
 				ORDER BY id DESC LIMIT 1
 				""")
 				.param("challengeId", challengeId)
 				.param("userId", userId)
-				.query((rs, rowNum) -> new ParticipantInfo(
-						rs.getLong("id"), rs.getLong("user_id"), rs.getString("role"), rs.getString("status")))
+				.query((rs, rowNum) -> toInfo(rs))
 				.optional();
 	}
 
 	@Override
-	public Map<Long, Long> findUserIdsByParticipationIds(Collection<Long> participationIds) {
-		Map<Long, Long> result = new HashMap<>();
+	public Map<Long, ParticipantInfo> findParticipantsByIds(Collection<Long> participationIds) {
+		Map<Long, ParticipantInfo> result = new HashMap<>();
 		if (participationIds.isEmpty()) {
 			return result;
 		}
-		jdbc.sql("SELECT id, user_id FROM morak.participation WHERE id IN (:ids)")
+		jdbc.sql("SELECT id, user_id, role, status FROM morak.participation WHERE id IN (:ids)")
 				.param("ids", participationIds)
-				.query((rs, rowNum) -> result.put(rs.getLong("id"), rs.getLong("user_id")))
+				.query((rs, rowNum) -> {
+					ParticipantInfo info = toInfo(rs);
+					result.put(info.participationId(), info);
+					return info;
+				})
 				.list();
 		return result;
+	}
+
+	private static ParticipantInfo toInfo(ResultSet rs) throws SQLException {
+		return new ParticipantInfo(
+				rs.getLong("id"), rs.getLong("user_id"), rs.getString("role"), rs.getString("status"));
 	}
 }
