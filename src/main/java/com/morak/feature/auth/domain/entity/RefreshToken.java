@@ -36,6 +36,20 @@ public class RefreshToken {
 
 	protected RefreshToken() {}
 
+	public Long getUserId() { return userId; }
+
+	/** A token is usable only before its expiry and while no revocation has been recorded. */
+	public boolean isUsableAt(LocalDateTime now) {
+		return revokedAt == null && expiresAt.isAfter(now);
+	}
+
+	/** Revokes this login token once, preserving the first revocation time on retries. */
+	public void revoke(LocalDateTime now) {
+		if (revokedAt == null) {
+			revokedAt = now;
+		}
+	}
+
 	public RefreshToken(Long userId, String tokenHash, LocalDateTime expiresAt) {
 		this.userId = userId;
 		this.tokenHash = tokenHash;
