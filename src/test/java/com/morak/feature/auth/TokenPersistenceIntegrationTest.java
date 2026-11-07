@@ -4,12 +4,16 @@ import com.morak.common.exception.BusinessException;
 import com.morak.feature.auth.application.dto.result.IssuedTokens;
 import com.morak.feature.auth.application.service.LogoutService;
 import com.morak.feature.auth.application.service.RefreshTokenService;
+import com.morak.feature.auth.application.service.RefreshTokenCleanupService;
+import com.morak.feature.auth.domain.repository.RefreshTokenRepository;
 import com.morak.feature.auth.domain.exception.AuthErrorCode;
 import com.morak.feature.auth.infrastructure.token.ServiceTokenProvider;
 import java.time.LocalDateTime;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +32,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /** Uses real PostgreSQL transactions; requires a running Docker engine. */
-@SpringBootTest(properties = "morak.auth.jwt.secret=integration-test-secret-integration-test-secret")
+@SpringBootTest(properties = {
+		"morak.auth.jwt.secret=integration-test-secret-integration-test-secret",
+		"morak.auth.refresh-token-cleanup.cron=-",
+		"morak.auth.refresh-token-cleanup.retention=P7D"
+})
 class TokenPersistenceIntegrationTest {
 	@TestConfiguration(proxyBeanMethods = false)
 	static class Containers {
@@ -43,6 +51,9 @@ class TokenPersistenceIntegrationTest {
 	@Autowired private RefreshTokenService refresh;
 	@Autowired private LogoutService logout;
 	@Autowired private JwtDecoder decoder;
+	@Autowired private RefreshTokenCleanupService cleanup;
+	@Autowired private RefreshTokenRepository repository;
+	@Autowired private PlatformTransactionManager transactionManager;
 	@MockitoSpyBean private ServiceTokenProvider tokens;
 	private long userId;
 
@@ -56,31 +67,42 @@ class TokenPersistenceIntegrationTest {
 				""").query(Long.class).single();
 	}
 
+	/** Holds the winning transaction open and observes the competing request waiting in PostgreSQL. */
 	@Test
 	void concurrentRefreshIssuesExactlyOneReplacement() throws Exception {
 		insertToken("old", LocalDateTime.now().plusDays(1));
-		CountDownLatch ready = new CountDownLatch(2);
-		CountDownLatch start = new CountDownLatch(1);
+		CountDownLatch locked = new CountDownLatch(1);
+		CountDownLatch release = new CountDownLatch(1);
+		// The first service call has acquired the row lock before it starts issuing an Access Token.
+		doAnswer(invocation -> {
+			locked.countDown();
+			assertTrue(release.await(15, TimeUnit.SECONDS), "First transaction was not released");
+			return invocation.callRealMethod();
+		}).when(tokens).createAccessToken(any(), anyBoolean());
 		try (var executor = Executors.newFixedThreadPool(2)) {
-			var first = executor.submit(() -> refreshAfterSignal(ready, start));
-			var second = executor.submit(() -> refreshAfterSignal(ready, start));
+			var first = executor.submit(() -> refresh.refresh("old"));
 			try {
-				assertTrue(ready.await(5, TimeUnit.SECONDS));
+				assertTrue(locked.await(5, TimeUnit.SECONDS));
+				var second = executor.submit(() -> assertRejected("old"));
+				awaitTokenLockWait();
+				assertFalse(second.isDone(), "Second refresh must wait for the first transaction's lock");
+				release.countDown();
+				IssuedTokens winner = first.get(15, TimeUnit.SECONDS);
+				second.get(15, TimeUnit.SECONDS);
+				assertTrue(isRevoked("old"));
+				assertFalse(isRevoked(winner.refreshToken()));
+				assertEquals(2L, tokenCount());
+				assertTrue(winner.onboarded());
+				assertRejected("old");
 			} finally {
-				start.countDown();
+				release.countDown();
 			}
-			IssuedTokens a = first.get(15, TimeUnit.SECONDS);
-			IssuedTokens b = second.get(15, TimeUnit.SECONDS);
-			assertTrue((a == null) != (b == null), "Exactly one refresh must succeed");
-			IssuedTokens winner = a != null ? a : b;
-			assertTrue(isRevoked("old"));
-			assertFalse(isRevoked(winner.refreshToken()));
-			assertEquals(2L, tokenCount());
-			assertTrue(winner.onboarded());
-			assertRejected("old");
+		} finally {
+			doCallRealMethod().when(tokens).createAccessToken(any(), anyBoolean());
 		}
 	}
 
+	/** A real unique-constraint failure must leave the previous token usable in a new transaction. */
 	@Test
 	void replacementInsertFailureRollsBackPreviousRevocation() {
 		insertToken("old", LocalDateTime.now().plusDays(1));
@@ -125,15 +147,54 @@ class TokenPersistenceIntegrationTest {
 		assertEquals(1L, tokenCount());
 	}
 
-	private IssuedTokens refreshAfterSignal(CountDownLatch ready, CountDownLatch start) throws Exception {
-		ready.countDown();
-		assertTrue(start.await(5, TimeUnit.SECONDS));
-		try {
-			return refresh.refresh("old");
-		} catch (BusinessException exception) {
-			assertEquals(AuthErrorCode.INVALID_REFRESH_TOKEN, exception.getErrorCode());
-			return null;
+	@Test
+	void cleanupRetainsRecentExpiredAndUnexpiredTokensRegardlessOfRevocation() {
+		insertToken("old-expired", LocalDateTime.now().minusDays(8));
+		insertToken("old-revoked", LocalDateTime.now().minusDays(8));
+		logout.logout("old-revoked");
+		insertToken("recent-expired", LocalDateTime.now().minusDays(1));
+		insertToken("active", LocalDateTime.now().plusDays(1));
+		insertToken("revoked-unexpired", LocalDateTime.now().plusDays(1));
+		logout.logout("revoked-unexpired");
+
+		assertEquals(2, cleanup.cleanup());
+		assertEquals(3L, tokenCount());
+		assertFalse(isRevoked("recent-expired"));
+		assertFalse(isRevoked("active"));
+		assertTrue(isRevoked("revoked-unexpired"));
+		assertEquals(0, cleanup.cleanup());
+		assertRejected("old-expired");
+		assertDoesNotThrow(() -> logout.logout("old-revoked"));
+	}
+
+	@Test
+	void cleanupIncludesExactRetentionCutoffAndPreservesNewerTokens() {
+		LocalDateTime cutoff = LocalDateTime.of(2026, 11, 1, 0, 0);
+		insertToken("boundary", cutoff);
+		insertToken("newer", cutoff.plusSeconds(1));
+		Integer deleted = new TransactionTemplate(transactionManager).execute(status -> repository.deleteExpiredBefore(cutoff));
+		assertEquals(1, deleted);
+		assertEquals(1L, tokenCount());
+		assertFalse(isRevoked("newer"));
+	}
+
+	/** Observes PostgreSQL lock contention so this test fails if the pessimistic lock is removed. */
+	private void awaitTokenLockWait() throws InterruptedException {
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+		while (System.nanoTime() < deadline) {
+			boolean waiting = jdbc.sql("""
+					SELECT EXISTS (
+						SELECT 1 FROM pg_stat_activity
+						WHERE datname = current_database() AND pid <> pg_backend_pid()
+						AND wait_event_type = 'Lock' AND query ILIKE '%refresh_token%'
+					)
+					""").query(Boolean.class).single();
+			if (waiting) {
+				return;
+			}
+			Thread.sleep(25);
 		}
+		fail("Second refresh never waited for the token row lock");
 	}
 
 	private void insertToken(String value, LocalDateTime expiry) {

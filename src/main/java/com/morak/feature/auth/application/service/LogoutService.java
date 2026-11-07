@@ -16,6 +16,10 @@ public class LogoutService {
 		this.tokens = tokens;
 	}
 
+	/**
+	 * Revokes only the supplied login token under the same row lock used by rotation.
+	 * Unknown, expired and already-revoked tokens are accepted; existing Access Tokens remain valid.
+	 */
 	@Transactional
 	public void logout(String rawToken) {
 		refreshTokens.findByTokenHashForUpdate(tokens.hash(rawToken))

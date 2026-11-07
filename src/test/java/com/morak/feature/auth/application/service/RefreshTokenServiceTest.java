@@ -35,11 +35,13 @@ class RefreshTokenServiceTest {
 		when(repository.findByTokenHashForUpdate("old-hash")).thenReturn(Optional.of(previous));
 	}
 
-	@Test
-	void rotatesTokenUsingCurrentOnboardingStateAndStoresOnlyHash() {
-		when(users.findUser(userId)).thenReturn(Optional.of(new UserState(userId, true, true)));
+	/** Both onboarding states must reach the issuer and response without a hard-coded completion value. */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	void rotatesTokenUsingCurrentOnboardingStateAndStoresOnlyHash(boolean onboarded) {
+		when(users.findUser(userId)).thenReturn(Optional.of(new UserState(userId, true, onboarded)));
 		Instant expiresAt = Instant.parse("2026-11-06T12:30:00Z");
-		when(tokens.createAccessToken(userId, true)).thenReturn(new AccessToken("access", expiresAt));
+		when(tokens.createAccessToken(userId, onboarded)).thenReturn(new AccessToken("access", expiresAt));
 		when(tokens.createRefreshToken()).thenReturn("new");
 		when(tokens.hash("new")).thenReturn("new-hash");
 		when(tokens.accessValiditySeconds()).thenReturn(1800L);
@@ -52,7 +54,8 @@ class RefreshTokenServiceTest {
 		assertEquals("Bearer", result.tokenType());
 		assertEquals(1800L, result.accessTokenExpiresIn());
 		assertEquals(expiresAt, result.accessTokenExpiresAt());
-		assertTrue(result.onboarded());
+		assertEquals(onboarded, result.onboarded());
+		verify(tokens).createAccessToken(userId, onboarded);
 		assertFalse(previous.isUsableAt(LocalDateTime.now()));
 		ArgumentCaptor<RefreshToken> saved = ArgumentCaptor.forClass(RefreshToken.class);
 		verify(repository).save(saved.capture());
@@ -67,6 +70,7 @@ class RefreshTokenServiceTest {
 		verify(repository, times(1)).save(any());
 	}
 
+	/** Unusable tokens must be rejected before looking up a user or issuing replacement credentials. */
 	@ParameterizedTest
 	@ValueSource(strings = {"missing", "expired", "revoked"})
 	void rejectsUnusableTokenWithoutIssuingNewTokens(String state) {

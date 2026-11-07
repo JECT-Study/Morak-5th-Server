@@ -23,6 +23,7 @@ public class RefreshTokenService {
 	private final ServiceTokenIssuer tokens;
 	private final Duration refreshValidity;
 
+	/** Configures token rotation with a strictly positive refresh-token lifetime. */
 	public RefreshTokenService(RefreshTokenRepository refreshTokens, UserAuthPort users,
 			ServiceTokenIssuer tokens,
 			@Value("${morak.auth.jwt.refresh-token-validity}") Duration refreshValidity) {
@@ -35,6 +36,11 @@ public class RefreshTokenService {
 		this.refreshValidity = refreshValidity;
 	}
 
+	/**
+	 * Locks and validates the supplied token, then atomically revokes it and stores a replacement.
+	 * Expired, revoked, unknown tokens or missing users are rejected; withdrawn users are forbidden.
+	 * Reads current onboarding state. Any issuance or persistence failure rolls back the rotation.
+	 */
 	@Transactional
 	public IssuedTokens refresh(String rawToken) {
 		RefreshToken previous = refreshTokens.findByTokenHashForUpdate(tokens.hash(rawToken))
