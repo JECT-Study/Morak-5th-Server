@@ -1,26 +1,52 @@
 name: CI
 
 on:
-  push:
-    branches: ["**"]
   pull_request:
-  workflow_dispatch:
+    branches: [ main ]
+  push:
+    branches: [ main ]
 
+# PR: 같은 PR에 새 커밋이 올라오면 이전 실행을 취소한다 (PR별로 그룹을 묶음).
+# main push: 실행마다 고유한 그룹을 써서 서로 취소되지 않는다 (머지마다 결과가 남음).
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# 읽기 전용 권한. 이 워크플로는 코드를 읽어서 빌드·테스트만 하고, 시크릿도 쓰지 않는다.
 permissions:
   contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 테스트가 멈춰도 기본값(6시간)까지 돌지 않도록 제한
+    timeout-minutes: 20
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
+
+      # Gradle 의존성·빌드 캐시 처리, Gradle Wrapper 검증까지 자동으로 해준다.
+      # 캐시는 main(기본 브랜치)에서만 저장되고, PR에서는 읽기만 한다.
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-      - name: Check formatting
-        run: ./gradlew spotlessCheck
+        uses: gradle/actions/setup-gradle@v5
+
+      # 포맷 검사(spotlessCheck) + 컴파일 + 테스트 + jar 패키징
+      # 통합 테스트의 PostgreSQL 컨테이너는 러너에 기본 설치된 Docker로 Testcontainers가 띄운다.
+      - name: Build
+        run: ./gradlew build
+
+      # 실패했을 때만 테스트 리포트를 남긴다. Actions 실행 화면 하단에서 내려받을 수 있다.
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: '**/build/reports/tests/'
+          retention-days: 7
