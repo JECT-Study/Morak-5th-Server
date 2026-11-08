@@ -8,6 +8,8 @@ import com.morak.feature.auth.application.service.RefreshTokenCleanupService;
 import com.morak.feature.auth.domain.repository.RefreshTokenRepository;
 import com.morak.feature.auth.domain.exception.AuthErrorCode;
 import com.morak.feature.auth.infrastructure.token.ServiceTokenProvider;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.LocalDateTime;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -54,6 +56,7 @@ class TokenPersistenceIntegrationTest {
 	@Autowired private RefreshTokenCleanupService cleanup;
 	@Autowired private RefreshTokenRepository repository;
 	@Autowired private PlatformTransactionManager transactionManager;
+	@PersistenceContext private EntityManager entityManager;
 	@MockitoSpyBean private ServiceTokenProvider tokens;
 	private long userId;
 
@@ -102,12 +105,15 @@ class TokenPersistenceIntegrationTest {
 		}
 	}
 
-	/** A real unique-constraint failure must leave the previous token usable in a new transaction. */
+	/** A failed replacement INSERT must roll back the previous token's already flushed revocation. */
 	@Test
 	void replacementInsertFailureRollsBackPreviousRevocation() {
 		insertToken("old", LocalDateTime.now().plusDays(1));
-		// Force a real database unique constraint failure after the previous token is revoked.
-		doReturn("old").when(tokens).createRefreshToken();
+		doAnswer(invocation -> {
+			entityManager.flush();
+			assertTrue(isRevoked("old"), "The revocation must reach PostgreSQL before the replacement INSERT");
+			return "old"; // Reuse the old hash to trigger the unique constraint.
+		}).when(tokens).createRefreshToken();
 		try {
 			assertThrows(DataIntegrityViolationException.class, () -> refresh.refresh("old"));
 		} finally {
