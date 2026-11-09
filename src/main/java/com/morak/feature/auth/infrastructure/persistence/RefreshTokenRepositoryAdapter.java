@@ -2,6 +2,8 @@ package com.morak.feature.auth.infrastructure.persistence;
 
 import com.morak.feature.auth.domain.entity.RefreshToken;
 import com.morak.feature.auth.domain.repository.RefreshTokenRepository;
+import java.util.Optional;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -15,4 +17,14 @@ public class RefreshTokenRepositoryAdapter implements RefreshTokenRepository {
 
 	@Override
 	public RefreshToken save(RefreshToken refreshToken) { return jpaRepository.save(refreshToken); }
+
+	@Override
+	public Optional<RefreshToken> findByTokenHashForUpdate(String tokenHash) {
+		return jpaRepository.findByTokenHashForUpdate(tokenHash);
+	}
+
+	@Override
+	public int deleteExpiredBefore(LocalDateTime cutoff) {
+		return jpaRepository.deleteExpiredBefore(cutoff);
+	}
 }
