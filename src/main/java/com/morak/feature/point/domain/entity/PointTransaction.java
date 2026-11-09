@@ -42,6 +42,10 @@ public class PointTransaction {
 	@Column(name = "participation_id", updatable = false)
 	private Long participationId;
 
+	/** 내역 표시용 거래 당시 챌린지 이름. 보증금 거래에만 있고, 이후 이름이 바뀌어도 갱신하지 않는다. */
+	@Column(name = "challenge_title", length = 50, updatable = false)
+	private String challengeTitle;
+
 	/** 같은 거래를 두 번 처리하지 않도록 유니크로 막는 키 (예: DEPOSIT:{participationId}). */
 	@Column(name = "idempotency_key", nullable = false, unique = true, length = 100, updatable = false)
 	private String idempotencyKey;
@@ -59,6 +63,7 @@ public class PointTransaction {
 			Long amount,
 			Long balanceAfter,
 			Long participationId,
+			String challengeTitle,
 			String idempotencyKey,
 			LocalDateTime createdAt) {
 		this.accountId = accountId;
@@ -67,6 +72,7 @@ public class PointTransaction {
 		this.amount = amount;
 		this.balanceAfter = balanceAfter;
 		this.participationId = participationId;
+		this.challengeTitle = challengeTitle;
 		this.idempotencyKey = idempotencyKey;
 		this.createdAt = createdAt;
 	}
@@ -86,6 +92,7 @@ public class PointTransaction {
 				amount,
 				balanceAfter,
 				null,
+				null,
 				idempotencyKey,
 				createdAtUtc);
 	}
@@ -94,6 +101,7 @@ public class PointTransaction {
 	public static PointTransaction deposit(
 			Long accountId,
 			Long participationId,
+			String challengeTitle,
 			long amount,
 			long balanceAfter,
 			LocalDateTime createdAtUtc) {
@@ -104,6 +112,7 @@ public class PointTransaction {
 				-amount,
 				balanceAfter,
 				participationId,
+				challengeTitle,
 				"DEPOSIT:" + participationId,
 				createdAtUtc);
 	}
@@ -112,6 +121,7 @@ public class PointTransaction {
 	public static PointTransaction refund(
 			Long accountId,
 			Long participationId,
+			String challengeTitle,
 			long amount,
 			long balanceAfter,
 			LocalDateTime createdAtUtc) {
@@ -122,6 +132,7 @@ public class PointTransaction {
 				amount,
 				balanceAfter,
 				participationId,
+				challengeTitle,
 				"REFUND:" + participationId,
 				createdAtUtc);
 	}
@@ -133,6 +144,7 @@ public class PointTransaction {
 	public Long getAmount() { return amount; }
 	public Long getBalanceAfter() { return balanceAfter; }
 	public Long getParticipationId() { return participationId; }
+	public String getChallengeTitle() { return challengeTitle; }
 	public String getIdempotencyKey() { return idempotencyKey; }
 	public LocalDateTime getCreatedAt() { return createdAt; }
 }
