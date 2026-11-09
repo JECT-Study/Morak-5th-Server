@@ -2,9 +2,19 @@ package com.morak.feature.challenge.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipation.InvalidatedApplication;
+import com.morak.feature.challenge.application.port.out.InvalidatedApplicationNotice;
 import com.morak.feature.challenge.domain.entity.Challenge.Category;
 import com.morak.feature.challenge.domain.entity.Challenge.Visibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
@@ -12,6 +22,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -25,6 +37,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -55,17 +68,33 @@ class CreateChallengeTransactionIntegrationTest {
 	@Autowired private JdbcClient jdbc;
 	@Autowired private CreateChallengeTransaction transaction;
 	@Autowired private PlatformTransactionManager transactionManager;
+	@MockitoBean private ChallengeParticipation participants;
+	@MockitoBean private InvalidatedApplicationNotice notices;
 
 	@BeforeEach
 	void clearFixtures() {
 		jdbc.sql("""
-				TRUNCATE morak.challenge, morak.participation, morak.notification, morak.chat_message
+				TRUNCATE morak.challenge, morak.participation, morak.chat_message
 				""").update();
 		jdbc.sql("""
 				INSERT INTO morak.users (id, status, created_at, updated_at)
 				VALUES (1, 'ACTIVE', now(), now()), (2, 'ACTIVE', now(), now())
 				ON CONFLICT (id) DO NOTHING
 				""").update();
+		when(participants.countOngoing(anyLong())).thenAnswer(invocation -> jdbc.sql("""
+				SELECT count(*) FROM morak.participation WHERE user_id = :userId AND status = 'ACTIVE'
+				""").param("userId", invocation.<Long>getArgument(0)).query(Long.class).single());
+		// 등록 포트가 개설 트랜잭션을 공유하는지 확인하기 위한 테스트용 기록이다.
+		doAnswer(invocation -> {
+			jdbc.sql("""
+					INSERT INTO morak.participation (challenge_id, user_id, role, status, applied_at, joined_at)
+					VALUES (:challengeId, :userId, 'HOST', 'ACTIVE', now(), now())
+					""")
+					.param("challengeId", invocation.<Long>getArgument(0))
+					.param("userId", invocation.<Long>getArgument(1))
+					.update();
+			return null;
+		}).when(participants).registerHost(anyLong(), anyLong(), any(Instant.class));
 	}
 
 	@Test
@@ -105,10 +134,8 @@ class CreateChallengeTransactionIntegrationTest {
 	@Test
 	void onlyOneConcurrentCreationReachesTheLimitAndInvalidatesPendingApplication() throws Exception {
 		long otherChallenge = createWithFourActiveChallenges();
-		jdbc.sql("""
-				INSERT INTO morak.participation (challenge_id, user_id, status, applied_at)
-				VALUES (:challengeId, 1, 'PENDING', now())
-				""").param("challengeId", otherChallenge).update();
+		when(participants.invalidatePendingWithoutPoints(1L))
+				.thenReturn(Optional.of(List.of(new InvalidatedApplication(42L, otherChallenge, 2L))));
 
 		CountDownLatch start = new CountDownLatch(1);
 		try (var executor = Executors.newFixedThreadPool(2)) {
@@ -119,25 +146,21 @@ class CreateChallengeTransactionIntegrationTest {
 		}
 
 		assertEquals(5L, number("SELECT count(*) FROM morak.participation WHERE user_id = 1 AND status = 'ACTIVE'"));
-		assertEquals(1L, number("SELECT count(*) FROM morak.participation WHERE status = 'INVALIDATED'"));
-		assertEquals(1L, number("SELECT count(*) FROM morak.notification WHERE recipient_user_id = 2"));
+		verify(participants).invalidatePendingWithoutPoints(1L);
+		verify(notices).send(eq(2L), eq(otherChallenge), eq(42L), any(Instant.class));
 	}
 
 	@Test
-	void rejectsFifthCreationWithoutChangingPendingApplicationThatRequiresPoints() {
-		long otherChallenge = createWithFourActiveChallenges();
-		jdbc.sql("""
-				INSERT INTO morak.participation (challenge_id, user_id, status, applied_at, deposit_amount, deposit_status)
-				VALUES (:challengeId, 1, 'PENDING', now(), 1000, 'PAID')
-				""").param("challengeId", otherChallenge).update();
+	void rejectsFifthCreationWhenParticipationPortRequiresPointHandling() {
+		createWithFourActiveChallenges();
+		when(participants.invalidatePendingWithoutPoints(1L)).thenReturn(Optional.empty());
 
 		BusinessException error = assertThrows(BusinessException.class,
 				() -> transaction.create(1, command(0), "100005"));
 
 		assertEquals(ChallengeErrorCode.PENDING_POINTS_NOT_SUPPORTED, error.getErrorCode());
 		assertEquals(3L, number("SELECT count(*) FROM morak.challenge WHERE owner_user_id = 1"));
-		assertEquals(1L, number("SELECT count(*) FROM morak.participation WHERE status = 'PENDING'"));
-		assertEquals(0L, number("SELECT count(*) FROM morak.notification"));
+		verifyNoInteractions(notices);
 	}
 
 	/** 개설한 세 방과 일반 참가자로 합류한 한 방을 함께 참여 한도에 포함시킨다. */

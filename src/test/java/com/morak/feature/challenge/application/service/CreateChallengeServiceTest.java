@@ -16,17 +16,18 @@ import static org.mockito.Mockito.when;
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
 import com.morak.feature.challenge.application.port.out.ChallengeOwnerLock;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
+import com.morak.feature.challenge.application.port.out.InvalidatedApplicationNotice;
 import com.morak.feature.challenge.domain.entity.Challenge.Category;
 import com.morak.feature.challenge.domain.entity.Challenge.Visibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
-import com.morak.feature.notification.application.InvalidatedApplicationNotice;
-import com.morak.feature.participation.application.ChallengeParticipation;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -90,8 +91,8 @@ class CreateChallengeServiceTest {
 			return null;
 		}).when(owners).lock(1L);
 		ChallengeRepository challenges = mock(ChallengeRepository.class);
-		var transactionalCreator = new CreateChallengeTransaction(challenges, mock(ChallengeParticipation.class),
-				owners, mock(InvalidatedApplicationNotice.class), clock);
+		var transactionalCreator = new CreateChallengeTransaction(challenges, Optional.of(mock(ChallengeParticipation.class)),
+				owners, Optional.of(mock(InvalidatedApplicationNotice.class)), clock);
 		var creator = new CreateChallengeService(transactionalCreator, clock);
 
 		BusinessException error = assertThrows(BusinessException.class,
@@ -100,6 +101,20 @@ class CreateChallengeServiceTest {
 		assertEquals(ChallengeErrorCode.INVALID_START_DATE, error.getErrorCode());
 		verify(owners).lock(1L);
 		verifyNoInteractions(challenges);
+	}
+
+	@Test
+	void rejectsCreationBeforeWritingIfIntegrationIsUnavailable() {
+		ChallengeRepository challenges = mock(ChallengeRepository.class);
+		ChallengeOwnerLock owners = mock(ChallengeOwnerLock.class);
+		var creator = new CreateChallengeTransaction(challenges, Optional.empty(), owners, Optional.empty(),
+				Clock.systemUTC());
+
+		BusinessException error = assertThrows(BusinessException.class,
+				() -> creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001"));
+
+		assertEquals(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE, error.getErrorCode());
+		verifyNoInteractions(challenges, owners);
 	}
 
 	private DataIntegrityViolationException duplicateKey(String constraintName) {

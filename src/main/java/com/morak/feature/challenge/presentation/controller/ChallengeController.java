@@ -71,7 +71,7 @@ public class ChallengeController {
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(
 				responseCode = "409", description = "동시 참여 한도에 도달했거나 개설에 포인트 처리가 필요합니다."),
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(
-				responseCode = "503", description = "초대 코드를 발급하지 못했습니다.")
+				responseCode = "503", description = "참가·알림 연동 준비 중이거나 초대 코드를 발급하지 못했습니다.")
 	})
 	@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 	public ResponseEntity<ApiResponse<CreatedChallenge>> create(@AuthenticationPrincipal LoginUser user,

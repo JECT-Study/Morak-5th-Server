@@ -3,14 +3,15 @@ package com.morak.feature.challenge.application.service;
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
 import com.morak.feature.challenge.application.port.out.ChallengeOwnerLock;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipation.InvalidatedApplication;
+import com.morak.feature.challenge.application.port.out.InvalidatedApplicationNotice;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
-import com.morak.feature.notification.application.InvalidatedApplicationNotice;
-import com.morak.feature.participation.application.ChallengeParticipation;
-import com.morak.feature.participation.application.ChallengeParticipation.InvalidatedApplication;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,17 +21,17 @@ public class CreateChallengeTransaction {
 	private static final int PARTICIPATION_LIMIT = 5;
 
 	private final ChallengeRepository challenges;
-	private final ChallengeParticipation participants;
+	private final Optional<ChallengeParticipation> participationPort;
 	private final ChallengeOwnerLock owners;
-	private final InvalidatedApplicationNotice notices;
+	private final Optional<InvalidatedApplicationNotice> noticePort;
 	private final Clock clock;
 
-	public CreateChallengeTransaction(ChallengeRepository challenges, ChallengeParticipation participants,
-			ChallengeOwnerLock owners, InvalidatedApplicationNotice notices, Clock clock) {
+	public CreateChallengeTransaction(ChallengeRepository challenges, Optional<ChallengeParticipation> participationPort,
+			ChallengeOwnerLock owners, Optional<InvalidatedApplicationNotice> noticePort, Clock clock) {
 		this.challenges = challenges;
-		this.participants = participants;
+		this.participationPort = participationPort;
 		this.owners = owners;
-		this.notices = notices;
+		this.noticePort = noticePort;
 		this.clock = clock;
 	}
 
@@ -40,6 +41,10 @@ public class CreateChallengeTransaction {
 		if (command.pointAmount() != 0) {
 			throw new BusinessException(ChallengeErrorCode.POINTS_NOT_SUPPORTED);
 		}
+		ChallengeParticipation participants = participationPort
+				.orElseThrow(() -> new BusinessException(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE));
+		InvalidatedApplicationNotice notices = noticePort
+				.orElseThrow(() -> new BusinessException(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE));
 		owners.lock(ownerId);
 		long ongoing = participants.countOngoing(ownerId);
 		if (ongoing >= PARTICIPATION_LIMIT) {
