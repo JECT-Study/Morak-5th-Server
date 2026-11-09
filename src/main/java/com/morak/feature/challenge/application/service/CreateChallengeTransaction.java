@@ -34,6 +34,7 @@ public class CreateChallengeTransaction {
 		this.clock = clock;
 	}
 
+	/** 사용자 잠금으로 개설을 직렬화하고 방장 등록과 대기 신청 무효화를 함께 저장한다. */
 	@Transactional
 	public long create(long ownerId, CreateChallengeCommand command, String inviteCode) {
 		if (command.pointAmount() != 0) {
@@ -45,6 +46,7 @@ public class CreateChallengeTransaction {
 			throw new BusinessException(ChallengeErrorCode.PARTICIPATION_LIMIT);
 		}
 		Instant now = clock.instant();
+		command.validateStartDate(now);
 		long challengeId = challenges.save(command.toChallenge(ownerId, inviteCode, now)).getId();
 		List<InvalidatedApplication> invalidated = ongoing + 1 == PARTICIPATION_LIMIT
 				? participants.invalidatePendingWithoutPoints(ownerId)

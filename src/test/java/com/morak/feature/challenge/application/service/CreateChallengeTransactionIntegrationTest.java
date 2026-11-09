@@ -8,7 +8,10 @@ import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
 import com.morak.feature.challenge.domain.entity.Challenge.Category;
 import com.morak.feature.challenge.domain.entity.Challenge.Visibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -20,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -39,6 +43,12 @@ class CreateChallengeTransactionIntegrationTest {
 		@ServiceConnection
 		PostgreSQLContainer postgres() {
 			return new PostgreSQLContainer(DockerImageName.parse("postgres:latest"));
+		}
+
+		@Bean
+		@Primary
+		Clock challengeTestClock() {
+			return Clock.fixed(Instant.parse("2026-11-09T00:00:00Z"), ZoneOffset.UTC);
 		}
 	}
 
@@ -125,16 +135,24 @@ class CreateChallengeTransactionIntegrationTest {
 				() -> transaction.create(1, command(0), "100005"));
 
 		assertEquals(ChallengeErrorCode.PENDING_POINTS_NOT_SUPPORTED, error.getErrorCode());
-		assertEquals(4L, number("SELECT count(*) FROM morak.challenge WHERE owner_user_id = 1"));
+		assertEquals(3L, number("SELECT count(*) FROM morak.challenge WHERE owner_user_id = 1"));
 		assertEquals(1L, number("SELECT count(*) FROM morak.participation WHERE status = 'PENDING'"));
 		assertEquals(0L, number("SELECT count(*) FROM morak.notification"));
 	}
 
+	/** 개설한 세 방과 일반 참가자로 합류한 한 방을 함께 참여 한도에 포함시킨다. */
 	private long createWithFourActiveChallenges() {
 		long otherChallenge = transaction.create(2, command(0), "100000");
-		for (int index = 1; index <= 4; index++) {
+		long joinedChallenge = transaction.create(2, command(0), "100004");
+		for (int index = 1; index <= 3; index++) {
 			transaction.create(1, command(0), "10000" + index);
 		}
+		jdbc.sql("""
+				INSERT INTO morak.participation (challenge_id, user_id, role, status, applied_at, joined_at)
+				VALUES (:challengeId, 1, 'MEMBER', 'ACTIVE', now(), now())
+				""").param("challengeId", joinedChallenge).update();
+		jdbc.sql("UPDATE morak.challenge SET current_count = 2 WHERE id = :challengeId")
+				.param("challengeId", joinedChallenge).update();
 		return otherChallenge;
 	}
 

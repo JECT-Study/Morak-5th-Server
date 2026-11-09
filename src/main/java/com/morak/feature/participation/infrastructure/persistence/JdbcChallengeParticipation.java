@@ -44,6 +44,7 @@ class JdbcChallengeParticipation implements ChallengeParticipation {
 				.update();
 	}
 
+	/** 챌린지와 신청을 차례로 잠그고, 포인트 처리가 필요한 신청이 없을 때만 일괄 무효화한다. */
 	@Override
 	public Optional<List<InvalidatedApplication>> invalidatePendingWithoutPoints(long userId) {
 		jdbc.sql("""

@@ -23,6 +23,18 @@ class CreateChallengeCommandTest {
 		assertDoesNotThrow(() -> command(Visibility.PUBLIC, 3, 0, 7));
 	}
 
+	@Test
+	void rejectsDatesOutsidePostgresDateRange() {
+		LocalDate tooLate = LocalDate.of(5874898, 1, 1);
+		BusinessException invalidEnd = assertThrows(BusinessException.class,
+				() -> command(START, tooLate, Visibility.PUBLIC, 3, 0));
+		assertEquals(ChallengeErrorCode.DATE_OUT_OF_RANGE, invalidEnd.getErrorCode());
+		BusinessException invalidStart = assertThrows(BusinessException.class,
+				() -> command(LocalDate.MIN, START, Visibility.PUBLIC, 3, 0));
+		assertEquals(ChallengeErrorCode.DATE_OUT_OF_RANGE, invalidStart.getErrorCode());
+		assertDoesNotThrow(() -> command(START, tooLate.minusDays(1), Visibility.PUBLIC, 3, 0));
+	}
+
 	@ParameterizedTest
 	@CsvSource({"PUBLIC,2", "PUBLIC,11", "PRIVATE,1", "PRIVATE,11"})
 	void rejectsCapacityOutsideVisibilityRange(Visibility visibility, int capacity) {
@@ -54,7 +66,11 @@ class CreateChallengeCommandTest {
 	}
 
 	private CreateChallengeCommand command(Visibility visibility, int capacity, int amount, int days) {
+		return command(START, START.plusDays(days - 1), visibility, capacity, amount);
+	}
+
+	private CreateChallengeCommand command(LocalDate start, LocalDate end, Visibility visibility, int capacity, int amount) {
 		return new CreateChallengeCommand("아침 독서", visibility, Category.READING, "독서 습관 만들기", "매일 10쪽 읽기",
-				"읽은 쪽 사진 올리기", START, START.plusDays(days - 1), capacity, amount, null);
+				"읽은 쪽 사진 올리기", start, end, capacity, amount, null);
 	}
 }
