@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -17,7 +18,8 @@ import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
 import com.morak.feature.challenge.application.port.out.ChallengeOwnerLock;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
-import com.morak.feature.challenge.application.port.out.InvalidatedApplicationNotice;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
+import com.morak.feature.challenge.domain.entity.Challenge;
 import com.morak.feature.challenge.domain.entity.Challenge.Category;
 import com.morak.feature.challenge.domain.entity.Challenge.Visibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
@@ -27,9 +29,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataIntegrityViolationException;
 
 class CreateChallengeServiceTest {
@@ -91,8 +96,8 @@ class CreateChallengeServiceTest {
 			return null;
 		}).when(owners).lock(1L);
 		ChallengeRepository challenges = mock(ChallengeRepository.class);
-		var transactionalCreator = new CreateChallengeTransaction(challenges, Optional.of(mock(ChallengeParticipation.class)),
-				owners, Optional.of(mock(InvalidatedApplicationNotice.class)), clock);
+		var transactionalCreator = new CreateChallengeTransaction(challenges, mock(ChallengeParticipationReader.class),
+				Optional.of(mock(ChallengeParticipation.class)), owners, Optional.empty(), clock);
 		var creator = new CreateChallengeService(transactionalCreator, clock);
 
 		BusinessException error = assertThrows(BusinessException.class,
@@ -107,14 +112,33 @@ class CreateChallengeServiceTest {
 	void rejectsCreationBeforeWritingIfIntegrationIsUnavailable() {
 		ChallengeRepository challenges = mock(ChallengeRepository.class);
 		ChallengeOwnerLock owners = mock(ChallengeOwnerLock.class);
-		var creator = new CreateChallengeTransaction(challenges, Optional.empty(), owners, Optional.empty(),
-				Clock.systemUTC());
+		var creator = new CreateChallengeTransaction(challenges, mock(ChallengeParticipationReader.class),
+				Optional.empty(), owners, Optional.empty(), Clock.systemUTC());
 
 		BusinessException error = assertThrows(BusinessException.class,
 				() -> creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001"));
 
 		assertEquals(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE, error.getErrorCode());
 		verifyNoInteractions(challenges, owners);
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {0, 4})
+	void createsWithoutNoticeIntegrationWhenThereAreNoInvalidatedApplications(int ongoing) {
+		Instant now = Instant.parse("2026-11-09T15:00:00Z");
+		ChallengeRepository challenges = mock(ChallengeRepository.class);
+		Challenge saved = mock(Challenge.class);
+		when(saved.getId()).thenReturn(12L);
+		when(challenges.save(any(Challenge.class))).thenReturn(saved);
+		ChallengeParticipationReader reader = mock(ChallengeParticipationReader.class);
+		when(reader.countOngoing(1L)).thenReturn(ongoing);
+		ChallengeParticipation participants = mock(ChallengeParticipation.class);
+		when(participants.invalidatePendingWithoutPoints(1L)).thenReturn(Optional.of(List.of()));
+		var creator = new CreateChallengeTransaction(challenges, reader, Optional.of(participants),
+				mock(ChallengeOwnerLock.class), Optional.empty(), Clock.fixed(now, ZoneOffset.UTC));
+
+		assertEquals(12L, creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001"));
+		verify(participants).registerHost(12L, 1L, now);
 	}
 
 	private DataIntegrityViolationException duplicateKey(String constraintName) {

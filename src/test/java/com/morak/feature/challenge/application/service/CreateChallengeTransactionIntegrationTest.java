@@ -81,9 +81,6 @@ class CreateChallengeTransactionIntegrationTest {
 				VALUES (1, 'ACTIVE', now(), now()), (2, 'ACTIVE', now(), now())
 				ON CONFLICT (id) DO NOTHING
 				""").update();
-		when(participants.countOngoing(anyLong())).thenAnswer(invocation -> jdbc.sql("""
-				SELECT count(*) FROM morak.participation WHERE user_id = :userId AND status = 'ACTIVE'
-				""").param("userId", invocation.<Long>getArgument(0)).query(Long.class).single());
 		// 등록 포트가 개설 트랜잭션을 공유하는지 확인하기 위한 테스트용 기록이다.
 		doAnswer(invocation -> {
 			jdbc.sql("""

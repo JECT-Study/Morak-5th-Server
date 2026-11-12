@@ -5,6 +5,7 @@ import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
 import com.morak.feature.challenge.application.port.out.ChallengeOwnerLock;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation.InvalidatedApplication;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.application.port.out.InvalidatedApplicationNotice;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
@@ -21,14 +22,17 @@ public class CreateChallengeTransaction {
 	private static final int PARTICIPATION_LIMIT = 5;
 
 	private final ChallengeRepository challenges;
+	private final ChallengeParticipationReader participationReader;
 	private final Optional<ChallengeParticipation> participationPort;
 	private final ChallengeOwnerLock owners;
 	private final Optional<InvalidatedApplicationNotice> noticePort;
 	private final Clock clock;
 
-	public CreateChallengeTransaction(ChallengeRepository challenges, Optional<ChallengeParticipation> participationPort,
-			ChallengeOwnerLock owners, Optional<InvalidatedApplicationNotice> noticePort, Clock clock) {
+	public CreateChallengeTransaction(ChallengeRepository challenges, ChallengeParticipationReader participationReader,
+			Optional<ChallengeParticipation> participationPort, ChallengeOwnerLock owners,
+			Optional<InvalidatedApplicationNotice> noticePort, Clock clock) {
 		this.challenges = challenges;
+		this.participationReader = participationReader;
 		this.participationPort = participationPort;
 		this.owners = owners;
 		this.noticePort = noticePort;
@@ -43,10 +47,8 @@ public class CreateChallengeTransaction {
 		}
 		ChallengeParticipation participants = participationPort
 				.orElseThrow(() -> new BusinessException(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE));
-		InvalidatedApplicationNotice notices = noticePort
-				.orElseThrow(() -> new BusinessException(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE));
 		owners.lock(ownerId);
-		long ongoing = participants.countOngoing(ownerId);
+		int ongoing = participationReader.countOngoing(ownerId);
 		if (ongoing >= PARTICIPATION_LIMIT) {
 			throw new BusinessException(ChallengeErrorCode.PARTICIPATION_LIMIT);
 		}
@@ -58,8 +60,12 @@ public class CreateChallengeTransaction {
 						.orElseThrow(() -> new BusinessException(ChallengeErrorCode.PENDING_POINTS_NOT_SUPPORTED))
 				: List.of();
 		participants.registerHost(challengeId, ownerId, now);
-		for (InvalidatedApplication application : invalidated) {
-			notices.send(application.hostUserId(), application.challengeId(), application.id(), now);
+		if (!invalidated.isEmpty()) {
+			InvalidatedApplicationNotice notices = noticePort
+					.orElseThrow(() -> new BusinessException(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE));
+			for (InvalidatedApplication application : invalidated) {
+				notices.send(application.hostUserId(), application.challengeId(), application.id(), now);
+			}
 		}
 		return challengeId;
 	}
