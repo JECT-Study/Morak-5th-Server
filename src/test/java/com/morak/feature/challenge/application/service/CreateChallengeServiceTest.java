@@ -23,15 +23,14 @@ import com.morak.feature.challenge.domain.entity.Challenge;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import com.morak.feature.challenge.domain.exception.InviteCodeConflictException;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
-import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
-import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -55,7 +54,7 @@ class CreateChallengeServiceTest {
 	void retriesAnInviteCodeCollisionAndReturnsSixDigits() {
 		CreateChallengeCommand command = command(LocalDate.of(2026, 11, 11));
 		when(transaction.create(eq(1L), eq(command), anyString()))
-				.thenThrow(duplicateKey("uk_challenge_invite_code"))
+				.thenThrow(new InviteCodeConflictException(null))
 				.thenReturn(12L);
 
 		var created = service.create(1L, command);
@@ -68,7 +67,7 @@ class CreateChallengeServiceTest {
 	void stopsAfterFiveInviteCodeCollisions() {
 		CreateChallengeCommand command = command(LocalDate.of(2026, 11, 11));
 		when(transaction.create(eq(1L), eq(command), anyString()))
-				.thenThrow(duplicateKey("uk_challenge_invite_code"));
+				.thenThrow(new InviteCodeConflictException(null));
 
 		BusinessException error = assertThrows(BusinessException.class, () -> service.create(1L, command));
 
@@ -79,7 +78,7 @@ class CreateChallengeServiceTest {
 	@Test
 	void doesNotRetryUnrelatedIntegrityViolation() {
 		CreateChallengeCommand command = command(LocalDate.of(2026, 11, 11));
-		var violation = duplicateKey("uk_participation_challenge_user");
+		var violation = new DataIntegrityViolationException("unrelated constraint violation");
 		when(transaction.create(eq(1L), eq(command), anyString())).thenThrow(violation);
 
 		assertSame(violation, assertThrows(DataIntegrityViolationException.class, () -> service.create(1L, command)));
@@ -139,12 +138,6 @@ class CreateChallengeServiceTest {
 
 		assertEquals(12L, creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001"));
 		verify(participants).registerHost(12L, 1L, now);
-	}
-
-	private DataIntegrityViolationException duplicateKey(String constraintName) {
-		var violation = new ConstraintViolationException("duplicate", new SQLException("duplicate", "23505"),
-				constraintName);
-		return new DataIntegrityViolationException("duplicate", violation);
 	}
 
 	private CreateChallengeCommand command(LocalDate start) {

@@ -3,18 +3,16 @@ package com.morak.feature.challenge.application.service;
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import com.morak.feature.challenge.domain.exception.InviteCodeConflictException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.Locale;
-import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 @Service
 public class CreateChallengeService {
 
 	private static final int MAX_CODE_ATTEMPTS = 5;
-	private static final String INVITE_CODE_INDEX = "uk_challenge_invite_code";
 
 	private final CreateChallengeTransaction transaction;
 	private final Clock clock;
@@ -32,24 +30,11 @@ public class CreateChallengeService {
 			String inviteCode = String.format(Locale.ROOT, "%06d", random.nextInt(1_000_000));
 			try {
 				return new CreatedChallenge(transaction.create(ownerId, command, inviteCode), inviteCode);
-			} catch (DataIntegrityViolationException exception) {
-				if (!isInviteCodeCollision(exception)) {
-					throw exception;
-				}
+			} catch (InviteCodeConflictException exception) {
+				// 다음 시도에서 새 코드를 발급한다.
 			}
 		}
 		throw new BusinessException(ChallengeErrorCode.INVITE_CODE_UNAVAILABLE);
-	}
-
-	/** 초대 코드 고유 제약 위반만 재시도 대상으로 구분한다. */
-	private boolean isInviteCodeCollision(DataIntegrityViolationException exception) {
-		for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
-			if (cause instanceof ConstraintViolationException violation
-					&& INVITE_CODE_INDEX.equals(violation.getConstraintName())) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	public record CreatedChallenge(long challengeId, String inviteCode) {}

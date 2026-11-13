@@ -25,6 +25,7 @@ import com.morak.feature.challenge.application.port.out.InvalidatedApplicationNo
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import com.morak.feature.challenge.domain.exception.InviteCodeConflictException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -162,6 +163,16 @@ class CreateChallengeTransactionIntegrationTest {
 				SELECT role || ':' || status FROM morak.participation
 				""").query(String.class).single());
 		assertEquals(0L, number("SELECT count(*) FROM morak.point_account"));
+	}
+
+	@Test
+	void translatesDatabaseInviteCodeCollisionAndRollsBackTheSecondCreation() {
+		transaction.create(1, command(0), "000001");
+
+		assertThrows(InviteCodeConflictException.class, () -> transaction.create(2, command(0), "000001"));
+
+		assertEquals(1L, number("SELECT count(*) FROM morak.challenge"));
+		assertEquals(1L, number("SELECT count(*) FROM morak.participation"));
 	}
 
 	@Test

@@ -13,6 +13,7 @@ import com.morak.feature.user.domain.vo.UserId;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -55,6 +56,12 @@ public class UserService {
 		user.completeOnboarding(profile, LocalDateTime.now());
 		userRepository.flushOnboarding();
 		return MyUserInfo.from(user);
+	}
+
+	/** 호출자의 트랜잭션이 끝날 때까지 활성 사용자의 행을 잠근다. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void lockActiveUser(UserId userId) {
+		getActiveUserForUpdate(userId);
 	}
 
 	private User getActiveUserForUpdate(UserId userId) {
