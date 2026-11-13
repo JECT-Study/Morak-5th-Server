@@ -50,6 +50,7 @@ public class ChallengeController {
 											"title": "아침 독서",
 											"visibility": "PRIVATE",
 											"category": "READING",
+											"description": "아침마다 함께 책 읽어요",
 											"purpose": "매일 읽는 습관 만들기",
 											"commonMission": "매일 10쪽 읽기",
 											"verificationRules": "읽은 쪽 사진 올리기",

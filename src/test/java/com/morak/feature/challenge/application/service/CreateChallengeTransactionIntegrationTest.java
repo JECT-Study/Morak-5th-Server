@@ -1,22 +1,29 @@
 package com.morak.feature.challenge.application.service;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.morak.common.exception.BusinessException;
+import com.morak.feature.auth.application.port.out.ServiceTokenIssuer;
+import com.morak.feature.auth.domain.vo.AuthUserId;
 import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation.InvalidatedApplication;
 import com.morak.feature.challenge.application.port.out.InvalidatedApplicationNotice;
-import com.morak.feature.challenge.domain.entity.Challenge.Category;
-import com.morak.feature.challenge.domain.entity.Challenge.Visibility;
+import com.morak.feature.challenge.domain.enums.ChallengeCategory;
+import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import java.time.Clock;
 import java.time.Instant;
@@ -34,10 +41,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -48,6 +59,7 @@ import org.testcontainers.utility.DockerImageName;
 		"morak.auth.refresh-token-cleanup.cron=-",
 		"morak.auth.refresh-token-cleanup.retention=P7D"
 })
+@AutoConfigureMockMvc
 class CreateChallengeTransactionIntegrationTest {
 
 	@TestConfiguration(proxyBeanMethods = false)
@@ -66,6 +78,8 @@ class CreateChallengeTransactionIntegrationTest {
 	}
 
 	@Autowired private JdbcClient jdbc;
+	@Autowired private MockMvc mvc;
+	@Autowired private ServiceTokenIssuer tokens;
 	@Autowired private CreateChallengeTransaction transaction;
 	@Autowired private PlatformTransactionManager transactionManager;
 	@MockitoBean private ChallengeParticipation participants;
@@ -92,6 +106,49 @@ class CreateChallengeTransactionIntegrationTest {
 					.update();
 			return null;
 		}).when(participants).registerHost(anyLong(), anyLong(), any(Instant.class));
+	}
+
+	@Test
+	void createsChallengeThroughApiWithHostRegistrationStubbed() throws Exception {
+		jdbc.sql("UPDATE morak.users SET onboarded_at = now() WHERE id = 1").update();
+		doNothing().when(participants).registerHost(anyLong(), eq(1L), any(Instant.class));
+		String token = tokens.createAccessToken(new AuthUserId(1L), true).value();
+
+		String requestBody = """
+						{
+						"title": "독서",
+						"visibility": "PUBLIC",
+						"category": "READING",
+						"description": "매일 함께 책 읽어요",
+						"commonMission": "미션",
+						"verificationRules": "인증",
+						"startDate": "2026-12-01",
+						"endDate": "2026-12-14",
+						"capacity": 3,
+						"pointAmount": 0
+						}
+						""";
+		var response = mvc.perform(post("/challenges")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(requestBody))
+				.andExpect(status().isCreated());
+
+		long id = number("SELECT id FROM morak.challenge WHERE owner_user_id = 1 AND status = 'RECRUITING'");
+		response.andExpect(jsonPath("$.data.challengeId").value(is(id), Long.class));
+		assertEquals("매일 함께 책 읽어요", jdbc.sql("""
+				SELECT description FROM morak.challenge
+				WHERE id = :id AND purpose IS NULL AND duration_weeks IS NULL AND end_date - start_date + 1 = 14
+				""").param("id", id).query(String.class).single());
+		verify(participants).registerHost(eq(id), eq(1L), any(Instant.class));
+		assertEquals(0L, number("SELECT count(*) FROM morak.participation"));
+
+		mvc.perform(post("/challenges")
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(requestBody.replace("\"description\": \"매일 함께 책 읽어요\",", "")))
+				.andExpect(status().isBadRequest());
+		assertEquals(1L, number("SELECT count(*) FROM morak.challenge"));
 	}
 
 	@Test
@@ -197,7 +254,7 @@ class CreateChallengeTransactionIntegrationTest {
 
 	private CreateChallengeCommand command(int amount) {
 		LocalDate start = LocalDate.of(2026, 12, 1);
-		return new CreateChallengeCommand("독서", Visibility.PUBLIC, Category.READING, "목적", "미션", "인증",
+		return new CreateChallengeCommand("독서", ChallengeVisibility.PUBLIC, ChallengeCategory.READING, "한줄 소개", "목적", "미션", "인증",
 				start, start.plusDays(6), 3, amount, null);
 	}
 }

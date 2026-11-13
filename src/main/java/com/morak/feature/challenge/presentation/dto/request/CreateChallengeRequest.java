@@ -2,8 +2,8 @@ package com.morak.feature.challenge.presentation.dto.request;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
-import com.morak.feature.challenge.domain.entity.Challenge.Category;
-import com.morak.feature.challenge.domain.entity.Challenge.Visibility;
+import com.morak.feature.challenge.domain.enums.ChallengeCategory;
+import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -14,9 +14,10 @@ import java.time.LocalDate;
 
 public record CreateChallengeRequest(
 		@NotBlank @Size(max = 12) String title,
-		@NotNull Visibility visibility,
-		@NotNull Category category,
-		@NotBlank String purpose,
+		@NotNull ChallengeVisibility visibility,
+		@NotNull ChallengeCategory category,
+		@NotBlank String description,
+		String purpose,
 		@NotBlank String commonMission,
 		@NotBlank String verificationRules,
 		@NotNull LocalDate startDate,
@@ -27,7 +28,7 @@ public record CreateChallengeRequest(
 
 	/** 생략된 참여 포인트는 0으로 처리하며 소수 값을 반올림하지 않는다. */
 	public CreateChallengeCommand toCommand() {
-		return new CreateChallengeCommand(title, visibility, category, purpose, commonMission, verificationRules,
+		return new CreateChallengeCommand(title, visibility, category, description, purpose, commonMission, verificationRules,
 				startDate, endDate, exactInteger(capacity, ChallengeErrorCode.INVALID_CAPACITY),
 				pointAmount == null ? 0 : exactInteger(pointAmount, ChallengeErrorCode.INVALID_POINT_AMOUNT), expectations);
 	}

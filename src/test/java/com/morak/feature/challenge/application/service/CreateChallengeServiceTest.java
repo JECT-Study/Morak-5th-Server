@@ -20,8 +20,8 @@ import com.morak.feature.challenge.application.port.out.ChallengeOwnerLock;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.domain.entity.Challenge;
-import com.morak.feature.challenge.domain.entity.Challenge.Category;
-import com.morak.feature.challenge.domain.entity.Challenge.Visibility;
+import com.morak.feature.challenge.domain.enums.ChallengeCategory;
+import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
 import java.sql.SQLException;
@@ -148,7 +148,7 @@ class CreateChallengeServiceTest {
 	}
 
 	private CreateChallengeCommand command(LocalDate start) {
-		return new CreateChallengeCommand("독서", Visibility.PRIVATE, Category.READING, "목적", "미션", "인증",
+		return new CreateChallengeCommand("독서", ChallengeVisibility.PRIVATE, ChallengeCategory.READING, "한줄 소개", "목적", "미션", "인증",
 				start, start.plusDays(6), 2, 0, null);
 	}
 }
