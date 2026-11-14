@@ -206,6 +206,7 @@ class PointServiceTest {
 		return ledger.transactions().stream().map(PointLedgerResult.Entry::id).toList();
 	}
 
+	/** 실제 DB 락은 없다. 동시성은 통합 테스트에서 검증한다. */
 	private static class FakeAccountRepository implements PointAccountRepository {
 
 		private final Map<Long, Long> accountIds = new HashMap<>();
@@ -216,29 +217,35 @@ class PointServiceTest {
 			if (!accountIds.containsKey(userId)) {
 				return Optional.empty();
 			}
+			Long accountId = accountIds.get(userId);
 			PointAccount account = PointAccount.open(userId, LocalDateTime.of(2026, 11, 1, 0, 0));
-			setField(account, "id", accountIds.get(userId));
-			setField(account, "balance", balances.get(userId));
+			setField(account, "id", accountId);
+			setField(account, "balance", balances.get(accountId));
 			return Optional.of(account);
 		}
 
 		@Override
-		public BalanceChange increase(Long userId, long amount, LocalDateTime nowUtc) {
+		public Long lockForUpdate(Long userId, LocalDateTime nowUtc) {
 			Long accountId = accountIds.computeIfAbsent(userId, id -> (long) accountIds.size() + 1);
-			long balance = balances.merge(userId, amount, Long::sum);
-			return new BalanceChange(accountId, balance);
+			balances.putIfAbsent(accountId, 0L);
+			return accountId;
 		}
 
 		@Override
-		public Optional<BalanceChange> decrease(Long userId, long amount, LocalDateTime nowUtc) {
-			if (!accountIds.containsKey(userId) || balances.get(userId) < amount) {
+		public long increase(Long accountId, long amount, LocalDateTime nowUtc) {
+			return balances.merge(accountId, amount, Long::sum);
+		}
+
+		@Override
+		public Optional<Long> decrease(Long accountId, long amount, LocalDateTime nowUtc) {
+			if (balances.get(accountId) < amount) {
 				return Optional.empty();
 			}
-			return Optional.of(new BalanceChange(accountIds.get(userId), balances.merge(userId, -amount, Long::sum)));
+			return Optional.of(balances.merge(accountId, -amount, Long::sum));
 		}
 
 		Long accountIdOf(Long userId) { return accountIds.get(userId); }
-		long balanceOf(Long userId) { return balances.getOrDefault(userId, 0L); }
+		long balanceOf(Long userId) { return balances.getOrDefault(accountIds.get(userId), 0L); }
 	}
 
 	private static class FakeTransactionRepository implements PointTransactionRepository {
@@ -251,9 +258,6 @@ class PointServiceTest {
 			saved.add(transaction);
 			return transaction;
 		}
-
-		@Override
-		public void lockIdempotencyKey(String idempotencyKey) {}
 
 		@Override
 		public Optional<PointTransaction> findByIdempotencyKey(String idempotencyKey) {

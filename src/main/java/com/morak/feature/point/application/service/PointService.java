@@ -7,15 +7,12 @@ import com.morak.feature.point.domain.entity.PointGrantReason;
 import com.morak.feature.point.domain.entity.PointTransaction;
 import com.morak.feature.point.domain.exception.PointErrorCode;
 import com.morak.feature.point.domain.repository.PointAccountRepository;
-import com.morak.feature.point.domain.repository.PointAccountRepository.BalanceChange;
 import com.morak.feature.point.domain.repository.PointTransactionRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,11 +42,12 @@ public class PointService {
 	@Transactional
 	public PointChangeResult grant(Long userId, PointGrantReason reason, long amount, String idempotencyKey) {
 		return change(
+				userId,
 				amount,
 				idempotencyKey,
-				now -> accountRepository.increase(userId, amount, now),
-				(change, now) -> PointTransaction.grant(
-						change.accountId(), reason, amount, change.balanceAfter(), idempotencyKey, now));
+				(accountId, now) -> accountRepository.increase(accountId, amount, now),
+				(accountId, balanceAfter, now) -> PointTransaction.grant(
+						accountId, reason, amount, balanceAfter, idempotencyKey, now));
 	}
 
 	/**
@@ -59,26 +57,28 @@ public class PointService {
 	@Transactional
 	public PointChangeResult refund(Long userId, Long participationId, String challengeTitle, long amount) {
 		return change(
+				userId,
 				amount,
 				"REFUND:" + participationId,
-				now -> accountRepository.increase(userId, amount, now),
-				(change, now) -> PointTransaction.refund(
-						change.accountId(), participationId, challengeTitle, amount, change.balanceAfter(), now));
+				(accountId, now) -> accountRepository.increase(accountId, amount, now),
+				(accountId, balanceAfter, now) -> PointTransaction.refund(
+						accountId, participationId, challengeTitle, amount, balanceAfter, now));
 	}
 
 	/**
 	 * 보증금 납부. amount는 참가자의 deposit_amount를 양수로 넘긴다. 참가자당 한 번만 반영된다 (키: DEPOSIT:{participationId}).
-	 * 잔액이 부족하거나 계정이 없으면 INSUFFICIENT_BALANCE. challengeTitle은 환급과 같다.
+	 * 잔액이 부족하면 INSUFFICIENT_BALANCE. 계정이 없으면 잔액 0으로 보고 같은 예외다. challengeTitle은 환급과 같다.
 	 */
 	@Transactional
 	public PointChangeResult deposit(Long userId, Long participationId, String challengeTitle, long amount) {
 		return change(
+				userId,
 				amount,
 				"DEPOSIT:" + participationId,
-				now -> accountRepository.decrease(userId, amount, now)
+				(accountId, now) -> accountRepository.decrease(accountId, amount, now)
 						.orElseThrow(() -> new BusinessException(PointErrorCode.INSUFFICIENT_BALANCE)),
-				(change, now) -> PointTransaction.deposit(
-						change.accountId(), participationId, challengeTitle, amount, change.balanceAfter(), now));
+				(accountId, balanceAfter, now) -> PointTransaction.deposit(
+						accountId, participationId, challengeTitle, amount, balanceAfter, now));
 	}
 
 	/**
@@ -102,26 +102,38 @@ public class PointService {
 	}
 
 	/**
-	 * 같은 키로 동시에 들어오면 키 단위 락으로 한 줄로 세운다. 늦게 온 쪽은 앞선 트랜잭션이 끝날 때까지 기다렸다가
-	 * 원장에서 앞선 거래를 찾아 그 결과를 돌려준다. 앞선 트랜잭션이 롤백됐으면 처음부터 새로 처리한다.
+	 * 계정 행을 먼저 잠가 같은 유저의 잔액 변경을 한 줄로 세운다. 늦게 온 쪽은 앞선 트랜잭션이 끝날 때까지 기다렸다가
+	 * 원장에서 같은 키의 거래를 찾으면 그 결과를 돌려준다. 앞선 트랜잭션이 롤백됐으면 처음부터 새로 처리한다.
 	 * 원장의 idempotency_key 유니크 제약은 마지막 안전장치로 남겨 둔다.
+	 * 실패하면 트랜잭션째 롤백되므로, 차감 실패로 새로 만든 빈 계정도 남지 않는다.
 	 */
 	private PointChangeResult change(
+			Long userId,
 			long amount,
 			String idempotencyKey,
-			Function<LocalDateTime, BalanceChange> changeBalance,
-			BiFunction<BalanceChange, LocalDateTime, PointTransaction> toTransaction) {
+			BalanceUpdate changeBalance,
+			LedgerEntry toTransaction) {
 		if (amount <= 0) {
 			throw new BusinessException(PointErrorCode.INVALID_AMOUNT);
 		}
-		transactionRepository.lockIdempotencyKey(idempotencyKey);
+		// PostgreSQL은 마이크로초까지만 저장하므로 미리 잘라 응답과 DB 값을 맞춘다.
+		LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
+		Long accountId = accountRepository.lockForUpdate(userId, now);
 		Optional<PointTransaction> processed = transactionRepository.findByIdempotencyKey(idempotencyKey);
 		if (processed.isPresent()) {
 			return PointChangeResult.from(processed.get());
 		}
-		// PostgreSQL은 마이크로초까지만 저장하므로 미리 잘라 응답과 DB 값을 맞춘다.
-		LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
-		BalanceChange change = changeBalance.apply(now);
-		return PointChangeResult.from(transactionRepository.save(toTransaction.apply(change, now)));
+		long balanceAfter = changeBalance.apply(accountId, now);
+		return PointChangeResult.from(transactionRepository.save(toTransaction.create(accountId, balanceAfter, now)));
+	}
+
+	@FunctionalInterface
+	private interface BalanceUpdate {
+		long apply(Long accountId, LocalDateTime now);
+	}
+
+	@FunctionalInterface
+	private interface LedgerEntry {
+		PointTransaction create(Long accountId, long balanceAfter, LocalDateTime now);
 	}
 }
