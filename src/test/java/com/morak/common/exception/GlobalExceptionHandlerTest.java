@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -39,5 +40,15 @@ class GlobalExceptionHandlerTest {
 		assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
 		assertEquals("COMMON_003", response.getBody().error().code());
 		assertEquals(CommonErrorCode.INTERNAL_SERVER_ERROR.message(), response.getBody().error().message());
+	}
+
+	@Test
+	void businessExceptionDetailIsNotExposedInResponse() {
+		var response = handler.handleBusinessException(
+				new BusinessException(CommonErrorCode.INVALID_REQUEST, "userId=10 balance=2999"),
+				new MockHttpServletRequest("POST", "/points"));
+		assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+		assertEquals("COMMON_001", response.getBody().error().code());
+		assertEquals(CommonErrorCode.INVALID_REQUEST.message(), response.getBody().error().message());
 	}
 }

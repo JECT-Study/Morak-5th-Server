@@ -1,6 +1,7 @@
 package com.morak.common.exception;
 
 import com.morak.common.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,9 +18,22 @@ public class GlobalExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+	/**
+	 * 업무 규칙 위반은 클라이언트 요청 문제라 WARN, 서버 상태 코드(5xx)인 업무 예외는 ERROR로 남긴다.
+	 * 원인 예외(cause)가 있으면 스택트레이스도 함께 남긴다.
+	 */
 	@ExceptionHandler(BusinessException.class)
-	public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException exception) {
+	public ResponseEntity<ApiResponse<Void>> handleBusinessException(
+			BusinessException exception, HttpServletRequest request) {
 		ErrorCode errorCode = exception.getErrorCode();
+		String format = "Business exception {} {} code={} message={} detail={}";
+		Object[] args = {request.getMethod(), request.getRequestURI(), errorCode.code(), errorCode.message(),
+				exception.getDetail(), exception.getCause()};
+		if (errorCode.status().is5xxServerError()) {
+			log.error(format, args);
+		} else {
+			log.warn(format, args);
+		}
 		return ResponseEntity.status(errorCode.status())
 				.body(ApiResponse.failure(errorCode.code(), errorCode.message()));
 	}
