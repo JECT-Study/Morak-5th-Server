@@ -293,6 +293,19 @@ class PointServiceTest {
 	}
 
 	@Test
+	void ledgerLimitIsCappedAtMaxLimit() {
+		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
+		for (long participation = 1; participation <= 100; participation++) {
+			service.deposit(USER, participation, TITLE, 1);
+		}
+
+		PointLedgerResult ledger = service.getLedger(USER, null, 1_000);
+
+		assertEquals(PointService.MAX_LIMIT, ledger.transactions().size());
+		assertEquals(2L, ledger.nextCursor());
+	}
+
+	@Test
 	void nonPositiveCursorIsRejected() {
 		assertRejected(PointErrorCode.INVALID_CURSOR, () -> service.getLedger(USER, 0L, null));
 		assertRejected(PointErrorCode.INVALID_CURSOR, () -> service.getLedger(USER, -1L, null));

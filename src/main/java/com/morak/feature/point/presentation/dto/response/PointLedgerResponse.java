@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.util.List;
 
 public record PointLedgerResponse(
-		@Schema(description = "현재 잔액 (원)", example = "7000")
+		@Schema(description = "현재 잔액 (P)", example = "7000")
 		long balance,
 		@Schema(description = "거래 내역 (최신순)")
 		List<TransactionResponse> transactions,
@@ -25,15 +25,15 @@ public record PointLedgerResponse(
 	public record TransactionResponse(
 			@Schema(description = "거래 ID", example = "42")
 			Long id,
-			@Schema(description = "GRANT: 지급, DEPOSIT: 보증금 납부, REFUND: 보증금 환급")
+			@Schema(description = "GRANT: 포인트 지급, DEPOSIT: 챌린지 보증금으로 포인트 차감, REFUND: 챌린지 보증금 포인트 반환")
 			PointTransactionType type,
 			@Schema(description = "지급 사유. GRANT일 때만 있다", nullable = true)
 			PointGrantReason reason,
 			@Schema(description = "거래 당시 챌린지 이름. 보증금 거래일 때만 있다", nullable = true, example = "매일 아침 러닝")
 			String challengeTitle,
-			@Schema(description = "변동 금액. 입금은 +, 출금은 -", example = "-3000")
+			@Schema(description = "변동 포인트 (P). 지급·반환은 +, 차감은 -", example = "-3000")
 			long amount,
-			@Schema(description = "거래 후 잔액", example = "7000")
+			@Schema(description = "거래 후 잔액 (P)", example = "7000")
 			long balanceAfter,
 			@Schema(description = "거래 시각 (UTC, 화면에는 KST로 변환)", example = "2026-11-09T03:00:00Z")
 			Instant createdAt) {
