@@ -26,10 +26,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.springframework.dao.DataIntegrityViolationException;
 
 class PointServiceTest {
 
 	private static final Long USER = 10L;
+	private static final Long OTHER_USER = 20L;
 	private static final String TITLE = "매일 아침 러닝";
 
 	private final FakeAccountRepository accounts = new FakeAccountRepository();
@@ -54,12 +57,13 @@ class PointServiceTest {
 	@Test
 	void refundAddsToExistingBalanceWithParticipationKey() {
 		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
+		service.deposit(USER, 7L, TITLE, 3_000);
 
 		PointChangeResult result = service.refund(USER, 7L, TITLE, 3_000);
 
 		assertEquals(3_000, result.amount());
-		assertEquals(13_000, result.balanceAfter());
-		PointTransaction saved = transactions.saved.get(1);
+		assertEquals(10_000, result.balanceAfter());
+		PointTransaction saved = transactions.saved.get(2);
 		assertEquals(PointTransactionType.REFUND, saved.getType());
 		assertEquals(7L, saved.getParticipationId());
 		assertEquals("REFUND:7", saved.getIdempotencyKey());
@@ -68,12 +72,68 @@ class PointServiceTest {
 
 	@Test
 	void sameIdempotencyKeyIsAppliedOnlyOnce() {
+		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
+		service.deposit(USER, 7L, TITLE, 3_000);
+
 		PointChangeResult first = service.refund(USER, 7L, TITLE, 3_000);
 		PointChangeResult second = service.refund(USER, 7L, TITLE, 3_000);
 
 		assertEquals(first, second);
-		assertEquals(3_000, accounts.balanceOf(USER));
-		assertEquals(1, transactions.saved.size());
+		assertEquals(10_000, accounts.balanceOf(USER));
+		assertEquals(3, transactions.saved.size());
+	}
+
+	@Test
+	void sameKeyWithDifferentAmountIsConflict() {
+		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
+		service.deposit(USER, 7L, TITLE, 3_000);
+
+		assertRejected(PointErrorCode.IDEMPOTENCY_KEY_CONFLICT, () -> service.deposit(USER, 7L, TITLE, 5_000));
+		assertEquals(7_000, accounts.balanceOf(USER));
+	}
+
+	@Test
+	void sameKeyFromAnotherUserIsConflict() {
+		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
+		service.grant(OTHER_USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:20");
+		service.deposit(USER, 7L, TITLE, 3_000);
+
+		assertRejected(PointErrorCode.IDEMPOTENCY_KEY_CONFLICT, () -> service.deposit(OTHER_USER, 7L, TITLE, 3_000));
+		assertEquals(10_000, accounts.balanceOf(OTHER_USER));
+	}
+
+	@Test
+	void duplicateKeyAtSaveIsTranslatedToConflict() {
+		transactions.failNextSave = true;
+
+		assertRejected(PointErrorCode.IDEMPOTENCY_KEY_CONFLICT,
+				() -> service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10"));
+	}
+
+	@Test
+	void refundWithoutDepositIsRejected() {
+		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
+
+		assertRejected(PointErrorCode.DEPOSIT_NOT_FOUND, () -> service.refund(USER, 7L, TITLE, 3_000));
+		assertEquals(10_000, accounts.balanceOf(USER));
+	}
+
+	@Test
+	void refundOfAnotherUsersDepositIsRejected() {
+		service.grant(OTHER_USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:20");
+		service.deposit(OTHER_USER, 7L, TITLE, 3_000);
+
+		assertRejected(PointErrorCode.DEPOSIT_NOT_FOUND, () -> service.refund(USER, 7L, TITLE, 3_000));
+		assertEquals(0, accounts.balanceOf(USER));
+	}
+
+	@Test
+	void refundOverDepositIsRejectedButPartialRefundIsAllowed() {
+		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
+		service.deposit(USER, 7L, TITLE, 3_000);
+
+		assertRejected(PointErrorCode.REFUND_EXCEEDS_DEPOSIT, () -> service.refund(USER, 7L, TITLE, 3_001));
+		assertEquals(9_000, service.refund(USER, 7L, TITLE, 2_000).balanceAfter());
 	}
 
 	@Test
@@ -141,6 +201,36 @@ class PointServiceTest {
 	}
 
 	@Test
+	void missingRequiredValuesAreRejected() {
+		assertRejected(PointErrorCode.MISSING_REQUIRED_VALUE,
+				() -> service.grant(null, PointGrantReason.SIGNUP_GIFT, 1_000, "k"));
+		assertRejected(PointErrorCode.MISSING_REQUIRED_VALUE, () -> service.grant(USER, null, 1_000, "k"));
+		assertRejected(PointErrorCode.MISSING_REQUIRED_VALUE, () -> service.deposit(USER, null, TITLE, 1_000));
+		assertRejected(PointErrorCode.MISSING_REQUIRED_VALUE, () -> service.refund(null, 7L, TITLE, 1_000));
+	}
+
+	@Test
+	void invalidIdempotencyKeyIsRejected() {
+		assertRejected(PointErrorCode.INVALID_IDEMPOTENCY_KEY,
+				() -> service.grant(USER, PointGrantReason.SIGNUP_GIFT, 1_000, null));
+		assertRejected(PointErrorCode.INVALID_IDEMPOTENCY_KEY,
+				() -> service.grant(USER, PointGrantReason.SIGNUP_GIFT, 1_000, " "));
+		assertRejected(PointErrorCode.INVALID_IDEMPOTENCY_KEY,
+				() -> service.grant(USER, PointGrantReason.SIGNUP_GIFT, 1_000, "k".repeat(101)));
+		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 1_000, "k".repeat(100));
+	}
+
+	@Test
+	void invalidChallengeTitleIsRejected() {
+		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
+
+		assertRejected(PointErrorCode.INVALID_CHALLENGE_TITLE, () -> service.deposit(USER, 7L, null, 1_000));
+		assertRejected(PointErrorCode.INVALID_CHALLENGE_TITLE, () -> service.deposit(USER, 7L, "", 1_000));
+		assertRejected(PointErrorCode.INVALID_CHALLENGE_TITLE, () -> service.refund(USER, 7L, "가".repeat(51), 1_000));
+		service.deposit(USER, 7L, "가".repeat(50), 1_000);
+	}
+
+	@Test
 	void createdAtIsTruncatedToMicroseconds() {
 		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
 
@@ -202,6 +292,16 @@ class PointServiceTest {
 		assertEquals(2, service.getLedger(USER, null, 1_000).transactions().size());
 	}
 
+	@Test
+	void nonPositiveCursorIsRejected() {
+		assertRejected(PointErrorCode.INVALID_CURSOR, () -> service.getLedger(USER, 0L, null));
+		assertRejected(PointErrorCode.INVALID_CURSOR, () -> service.getLedger(USER, -1L, null));
+	}
+
+	private static void assertRejected(PointErrorCode expected, Executable action) {
+		assertEquals(expected, assertThrows(BusinessException.class, action).getErrorCode());
+	}
+
 	private static List<Long> ids(PointLedgerResult ledger) {
 		return ledger.transactions().stream().map(PointLedgerResult.Entry::id).toList();
 	}
@@ -251,9 +351,15 @@ class PointServiceTest {
 	private static class FakeTransactionRepository implements PointTransactionRepository {
 
 		private final List<PointTransaction> saved = new ArrayList<>();
+		/** 다른 유저가 같은 키로 동시에 저장해 유니크 제약에 걸린 상황을 흉내 낸다. */
+		private boolean failNextSave;
 
 		@Override
 		public PointTransaction save(PointTransaction transaction) {
+			if (failNextSave) {
+				failNextSave = false;
+				throw new DataIntegrityViolationException("uk_point_transaction_idempotency");
+			}
 			setField(transaction, "id", (long) saved.size() + 1);
 			saved.add(transaction);
 			return transaction;

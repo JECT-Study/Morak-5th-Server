@@ -15,6 +15,9 @@ import java.time.LocalDateTime;
 @Table(name = "point_transaction")
 public class PointTransaction {
 
+	public static final int MAX_CHALLENGE_TITLE_LENGTH = 50;
+	public static final int MAX_IDEMPOTENCY_KEY_LENGTH = 100;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -43,11 +46,11 @@ public class PointTransaction {
 	private Long participationId;
 
 	/** 내역 표시용 거래 당시 챌린지 이름. 보증금 거래에만 있고, 이후 이름이 바뀌어도 갱신하지 않는다. */
-	@Column(name = "challenge_title", length = 50, updatable = false)
+	@Column(name = "challenge_title", length = MAX_CHALLENGE_TITLE_LENGTH, updatable = false)
 	private String challengeTitle;
 
 	/** 같은 거래를 두 번 처리하지 않도록 유니크로 막는 키 (예: DEPOSIT:{participationId}). */
-	@Column(name = "idempotency_key", nullable = false, unique = true, length = 100, updatable = false)
+	@Column(name = "idempotency_key", nullable = false, unique = true, length = MAX_IDEMPOTENCY_KEY_LENGTH, updatable = false)
 	private String idempotencyKey;
 
 	/** UTC 시각 (백엔드 위키 §3: DATETIME은 UTC). */
