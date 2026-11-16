@@ -44,7 +44,7 @@ class SupabaseChallengeCoverStorage implements ChallengeCoverStorage {
 	@Override
 	public void upload(String key, byte[] content, String contentType) {
 		try {
-			client.post().uri(builder -> builder.pathSegment("object", bucket).path("/" + key).build())
+			client.post().uri(builder -> builder.pathSegment("object", bucket).pathSegment(key.split("/")).build())
 					.contentType(MediaType.parseMediaType(contentType))
 					.header("x-upsert", "false")
 					.body(content).retrieve().toBodilessEntity();
