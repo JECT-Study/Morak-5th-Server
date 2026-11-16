@@ -2,13 +2,17 @@ package com.morak.feature.challenge.application.service;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
+import com.morak.feature.challenge.application.dto.query.ListChallengesQuery;
+import com.morak.feature.challenge.application.dto.result.CategoryItem;
+import com.morak.feature.challenge.application.dto.result.ChallengeListItem;
+import com.morak.feature.challenge.application.dto.result.ChallengePage;
+import com.morak.feature.challenge.application.dto.result.ChallengeView;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeDetail;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeSummary;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -31,11 +35,12 @@ public class ReadChallengeService {
 		this.coverImages = coverImages;
 	}
 
-	public ChallengePage list(ChallengeCategory category, String keyword, Long cursor, int size) {
+	public ChallengePage list(ListChallengesQuery query) {
+		int size = query.size();
 		if (size < 1 || size > MAX_PAGE_SIZE) {
 			throw new BusinessException(CommonErrorCode.INVALID_REQUEST);
 		}
-		List<ChallengeSummary> rows = challenges.findRecruitingPublic(category, keyword, cursor, size + 1);
+		List<ChallengeSummary> rows = challenges.findRecruitingPublic(query.category(), query.keyword(), query.cursor(), size + 1);
 		boolean hasNext = rows.size() > size;
 		if (hasNext) rows = new ArrayList<>(rows.subList(0, size));
 		Long nextCursor = hasNext ? rows.getLast().id() : null;
@@ -75,13 +80,4 @@ public class ReadChallengeService {
 				new CategoryItem(ChallengeCategory.READING, "독서"),
 				new CategoryItem(ChallengeCategory.LIFESTYLE, "생활습관"));
 		}
-
-	public record ChallengePage(List<ChallengeListItem> items, Long nextCursor, boolean hasNext) {}
-	public record ChallengeListItem(long id, String title, String description, ChallengeCategory category,
-			LocalDate startDate, LocalDate endDate, int capacity, int currentCount, int pointAmount, String coverImageUrl) {}
-	public record ChallengeView(long id, String title, String description, String visibility, ChallengeCategory category, String purpose,
-			String commonMission, String verificationRules, String expectations, String status,
-			LocalDate startDate, LocalDate endDate, int capacity, int currentCount,
-			int pointAmount, String myParticipationStatus, boolean canApply, String coverImageUrl) {}
-	public record CategoryItem(ChallengeCategory code, String name) {}
 }

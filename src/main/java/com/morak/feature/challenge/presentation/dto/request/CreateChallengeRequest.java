@@ -1,7 +1,7 @@
 package com.morak.feature.challenge.presentation.dto.request;
 
 import com.morak.common.exception.BusinessException;
-import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.command.CreateChallengeCommand;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;

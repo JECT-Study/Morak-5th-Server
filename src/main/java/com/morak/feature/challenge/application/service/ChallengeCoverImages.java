@@ -1,9 +1,9 @@
 package com.morak.feature.challenge.application.service;
 
 import com.morak.common.exception.BusinessException;
-import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.command.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.result.CreatedChallenge;
 import com.morak.feature.challenge.application.port.out.ChallengeCoverStorage;
-import com.morak.feature.challenge.application.service.CreateChallengeService.CreatedChallenge;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
+import com.morak.feature.challenge.application.dto.query.ListChallengesQuery;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeDetail;
@@ -36,7 +37,7 @@ class ReadChallengeServiceTest {
 				new ChallengeSummary(38, "독서 B", null, ChallengeCategory.READING, LocalDate.now(), LocalDate.now().plusDays(6), 3, 1, 0, null),
 				new ChallengeSummary(37, "독서 C", null, ChallengeCategory.READING, LocalDate.now(), LocalDate.now().plusDays(6), 3, 1, 0, null)));
 
-		var page = service.list(ChallengeCategory.READING, "책", 40L, 2);
+		var page = service.list(new ListChallengesQuery(ChallengeCategory.READING, "책", 40L, 2));
 
 		assertEquals(2, page.items().size());
 		assertEquals("함께 읽어요", page.items().getFirst().description());
@@ -47,7 +48,8 @@ class ReadChallengeServiceTest {
 
 	@Test
 	void rejectsOversizedPageBeforeQuerying() {
-		BusinessException error = assertThrows(BusinessException.class, () -> service.list(null, null, null, 101));
+		BusinessException error = assertThrows(BusinessException.class,
+				() -> service.list(new ListChallengesQuery(null, null, null, 101)));
 		assertEquals(CommonErrorCode.INVALID_REQUEST, error.getErrorCode());
 		verifyNoInteractions(challenges);
 	}

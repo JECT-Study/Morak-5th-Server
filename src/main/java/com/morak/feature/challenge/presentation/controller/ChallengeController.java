@@ -5,13 +5,14 @@ import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
 import com.morak.common.response.ApiResponse;
 import com.morak.feature.auth.application.dto.result.LoginUser;
+import com.morak.feature.challenge.application.dto.query.ListChallengesQuery;
+import com.morak.feature.challenge.application.dto.result.CategoryItem;
+import com.morak.feature.challenge.application.dto.result.ChallengePage;
+import com.morak.feature.challenge.application.dto.result.ChallengeView;
+import com.morak.feature.challenge.application.dto.result.CreatedChallenge;
 import com.morak.feature.challenge.application.service.ChallengeCoverImages;
 import com.morak.feature.challenge.application.service.CreateChallengeService;
-import com.morak.feature.challenge.application.service.CreateChallengeService.CreatedChallenge;
 import com.morak.feature.challenge.application.service.ReadChallengeService;
-import com.morak.feature.challenge.application.service.ReadChallengeService.CategoryItem;
-import com.morak.feature.challenge.application.service.ReadChallengeService.ChallengePage;
-import com.morak.feature.challenge.application.service.ReadChallengeService.ChallengeView;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.presentation.dto.request.CreateChallengeRequest;
@@ -64,7 +65,7 @@ public class ChallengeController {
 			@RequestParam(required = false) String keyword,
 			@RequestParam(required = false) Long cursor,
 			@RequestParam(defaultValue = "20") int size) {
-		return ApiResponse.success(readService.list(category, keyword, cursor, size));
+		return ApiResponse.success(readService.list(new ListChallengesQuery(category, keyword, cursor, size)));
 	}
 
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)

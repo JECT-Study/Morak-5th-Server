@@ -1,4 +1,4 @@
-package com.morak.feature.challenge.application.dto;
+package com.morak.feature.challenge.application.dto.command;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.domain.entity.Challenge;

@@ -1,4 +1,4 @@
-package com.morak.feature.challenge.application.dto;
+package com.morak.feature.challenge.application.dto.command;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;

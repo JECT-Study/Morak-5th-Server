@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.auth.application.port.out.ServiceTokenIssuer;
 import com.morak.feature.auth.domain.vo.AuthUserId;
-import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.command.CreateChallengeCommand;
 import com.morak.feature.challenge.application.port.out.ChallengeCoverStorage;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation.InvalidatedApplication;

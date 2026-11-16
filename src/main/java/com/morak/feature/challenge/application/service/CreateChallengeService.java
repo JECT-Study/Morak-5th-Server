@@ -1,7 +1,8 @@
 package com.morak.feature.challenge.application.service;
 
 import com.morak.common.exception.BusinessException;
-import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.command.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.result.CreatedChallenge;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.exception.InviteCodeConflictException;
 import java.security.SecureRandom;
@@ -42,6 +43,4 @@ public class CreateChallengeService {
 		}
 		throw new BusinessException(ChallengeErrorCode.INVITE_CODE_UNAVAILABLE);
 	}
-
-	public record CreatedChallenge(long challengeId, String inviteCode) {}
 }
