@@ -22,9 +22,10 @@ class ChallengeParticipationAdapterTest {
 
 	@Test
 	void delegatesHostRegistration() {
-		adapter.registerHost(10L, 1L, NOW);
+		when(command.registerHost(10L, 1L, NOW, 0)).thenReturn(99L);
+		assertEquals(99L, adapter.registerHost(10L, 1L, NOW, 0));
 
-		verify(command).registerHost(10L, 1L, NOW);
+		verify(command).registerHost(10L, 1L, NOW, 0);
 	}
 
 	@Test

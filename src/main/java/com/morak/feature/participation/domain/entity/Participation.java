@@ -45,6 +45,9 @@ public class Participation {
 	@Enumerated(EnumType.STRING)
 	private ParticipationPointStatus pointStatus;
 
+	@Column(name = "deposit_amount", nullable = false)
+	private int pointAmount;
+
 	private String applyMessage;
 
 	@Column(nullable = false)
@@ -79,6 +82,16 @@ public class Participation {
 		return participation;
 	}
 
+	/** 방장 등록 시 개설 포인트를 참여 행에 반영한다. */
+	public static Participation host(long challengeId, long userId, Instant now, int pointAmount) {
+		Participation participation = host(challengeId, userId, now);
+		if (pointAmount > 0) {
+			participation.pointAmount = pointAmount;
+			participation.pointStatus = ParticipationPointStatus.HELD;
+		}
+		return participation;
+	}
+
 	/** 동시 참여 한도에 걸려 대기 신청이 무효가 된다. 승인 대기 상태에서만 가능하다. */
 	public void invalidate() {
 		if (status != ParticipationStatus.PENDING) {
@@ -95,6 +108,10 @@ public class Participation {
 
 	public Long getId() {
 		return id;
+	}
+
+	public int getPointAmount() {
+		return pointAmount;
 	}
 
 	public long getChallengeId() {

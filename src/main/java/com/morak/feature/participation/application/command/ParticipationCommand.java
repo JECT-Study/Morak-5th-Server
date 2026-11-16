@@ -12,7 +12,7 @@ import java.util.Optional;
 public interface ParticipationCommand {
 
 	/** 개설자를 HOST·ACTIVE 참가자로 등록한다. 같은 챌린지에 이미 참가 정보가 있으면 예외. */
-	void registerHost(long challengeId, long userId, Instant now);
+	long registerHost(long challengeId, long userId, Instant now, int pointAmount);
 
 	/**
 	 * 사용자의 승인 대기 신청을 모두 무효(INVALIDATED)로 바꾼다. 포인트가 걸린 신청이 하나라도 있으면 반환 처리가 필요하므로
