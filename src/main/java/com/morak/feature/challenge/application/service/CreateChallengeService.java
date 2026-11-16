@@ -25,11 +25,17 @@ public class CreateChallengeService {
 
 	/** 초대 코드가 중복된 경우에만 새 코드와 새 트랜잭션으로 개설을 재시도한다. */
 	public CreatedChallenge create(long ownerId, CreateChallengeCommand command) {
+		return create(ownerId, command, null);
+	}
+
+	CreatedChallenge create(long ownerId, CreateChallengeCommand command, String coverImageKey) {
 		command.validateStartDate(clock.instant());
 		for (int attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
 			String inviteCode = String.format(Locale.ROOT, "%06d", random.nextInt(1_000_000));
 			try {
-				return new CreatedChallenge(transaction.create(ownerId, command, inviteCode), inviteCode);
+				long id = coverImageKey == null ? transaction.create(ownerId, command, inviteCode)
+						: transaction.create(ownerId, command, inviteCode, coverImageKey);
+				return new CreatedChallenge(id, inviteCode);
 			} catch (InviteCodeConflictException exception) {
 				// 다음 시도에서 새 코드를 발급한다.
 			}

@@ -96,7 +96,7 @@ class CreateChallengeServiceTest {
 		}).when(owners).lock(1L);
 		ChallengeRepository challenges = mock(ChallengeRepository.class);
 		var transactionalCreator = new CreateChallengeTransaction(challenges, mock(ChallengeParticipationReader.class),
-				Optional.of(mock(ChallengeParticipation.class)), owners, Optional.empty(), clock);
+				Optional.of(mock(ChallengeParticipation.class)), owners, Optional.empty(), clock, null);
 		var creator = new CreateChallengeService(transactionalCreator, clock);
 
 		BusinessException error = assertThrows(BusinessException.class,
@@ -112,7 +112,7 @@ class CreateChallengeServiceTest {
 		ChallengeRepository challenges = mock(ChallengeRepository.class);
 		ChallengeOwnerLock owners = mock(ChallengeOwnerLock.class);
 		var creator = new CreateChallengeTransaction(challenges, mock(ChallengeParticipationReader.class),
-				Optional.empty(), owners, Optional.empty(), Clock.systemUTC());
+				Optional.empty(), owners, Optional.empty(), Clock.systemUTC(), null);
 
 		BusinessException error = assertThrows(BusinessException.class,
 				() -> creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001"));
@@ -132,12 +132,13 @@ class CreateChallengeServiceTest {
 		ChallengeParticipationReader reader = mock(ChallengeParticipationReader.class);
 		when(reader.countOngoing(1L)).thenReturn(ongoing);
 		ChallengeParticipation participants = mock(ChallengeParticipation.class);
+		when(participants.registerHost(12L, 1L, now, 0)).thenReturn(90L);
 		when(participants.invalidatePendingWithoutPoints(1L)).thenReturn(Optional.of(List.of()));
 		var creator = new CreateChallengeTransaction(challenges, reader, Optional.of(participants),
-				mock(ChallengeOwnerLock.class), Optional.empty(), Clock.fixed(now, ZoneOffset.UTC));
+				mock(ChallengeOwnerLock.class), Optional.empty(), Clock.fixed(now, ZoneOffset.UTC), null);
 
 		assertEquals(12L, creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001"));
-		verify(participants).registerHost(12L, 1L, now);
+		verify(participants).registerHost(12L, 1L, now, 0);
 	}
 
 	private CreateChallengeCommand command(LocalDate start) {

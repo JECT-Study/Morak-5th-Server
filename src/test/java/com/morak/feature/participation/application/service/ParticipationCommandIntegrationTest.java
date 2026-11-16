@@ -55,7 +55,7 @@ class ParticipationCommandIntegrationTest {
 
 	@Test
 	void registerHostStoresActiveHostWithJoinedAt() {
-		inTransaction(() -> command.registerHost(10L, 1L, NOW));
+		inTransaction(() -> command.registerHost(10L, 1L, NOW, 0));
 
 		assertEquals("HOST:ACTIVE:NONE", jdbc.sql("""
 				SELECT role || ':' || status || ':' || point_status FROM morak.participation
@@ -67,10 +67,10 @@ class ParticipationCommandIntegrationTest {
 
 	@Test
 	void registerHostRejectsDuplicateForSameChallengeAndUser() {
-		inTransaction(() -> command.registerHost(10L, 1L, NOW));
+		inTransaction(() -> command.registerHost(10L, 1L, NOW, 0));
 
 		BusinessException error = assertThrows(BusinessException.class,
-				() -> inTransaction(() -> command.registerHost(10L, 1L, NOW)));
+				() -> inTransaction(() -> command.registerHost(10L, 1L, NOW, 0)));
 
 		assertEquals(ParticipationErrorCode.ALREADY_APPLIED, error.getErrorCode());
 	}
@@ -78,7 +78,7 @@ class ParticipationCommandIntegrationTest {
 	@Test
 	void registerHostRollsBackWithCallerTransaction() {
 		assertThrows(IllegalStateException.class, () -> inTransaction(() -> {
-			command.registerHost(10L, 1L, NOW);
+			command.registerHost(10L, 1L, NOW, 0);
 			throw new IllegalStateException("개설 실패");
 		}));
 
@@ -87,7 +87,7 @@ class ParticipationCommandIntegrationTest {
 
 	@Test
 	void commandsRequireCallerTransaction() {
-		assertThrows(IllegalTransactionStateException.class, () -> command.registerHost(10L, 1L, NOW));
+		assertThrows(IllegalTransactionStateException.class, () -> command.registerHost(10L, 1L, NOW, 0));
 		assertThrows(IllegalTransactionStateException.class, () -> command.invalidatePendingWithoutPoints(7L));
 	}
 

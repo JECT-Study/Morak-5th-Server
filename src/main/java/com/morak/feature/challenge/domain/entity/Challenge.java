@@ -40,6 +40,8 @@ public class Challenge {
 	private String commonMission;
 	private String verificationRules;
 	private String expectations;
+	@Column(length = 300)
+	private String coverImageKey;
 
 	@JdbcTypeCode(SqlTypes.CHAR)
 	private String inviteCode;
@@ -51,6 +53,8 @@ public class Challenge {
 	private LocalDate endDate;
 	private int capacity;
 	private int currentCount;
+	@Column(name = "point_amount", nullable = false)
+	private int pointAmount;
 
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -62,7 +66,7 @@ public class Challenge {
 
 	public Challenge(long ownerUserId, String title, ChallengeVisibility visibility, ChallengeCategory category,
 			String description, String purpose, String commonMission, String verificationRules, String expectations, String inviteCode,
-			LocalDate startDate, LocalDate endDate, int capacity, Instant now) {
+			LocalDate startDate, LocalDate endDate, int capacity, int pointAmount, Instant now, String coverImageKey) {
 		this.ownerUserId = ownerUserId;
 		this.title = title;
 		this.visibility = visibility;
@@ -72,10 +76,12 @@ public class Challenge {
 		this.commonMission = commonMission;
 		this.verificationRules = verificationRules;
 		this.expectations = expectations;
+		this.coverImageKey = coverImageKey;
 		this.inviteCode = inviteCode;
 		this.startDate = startDate;
 		this.endDate = endDate;
 		this.capacity = capacity;
+		this.pointAmount = pointAmount;
 		this.status = ChallengeStatus.RECRUITING;
 		this.currentCount = 1;
 		this.createdAt = LocalDateTime.ofInstant(now, ZoneOffset.UTC);

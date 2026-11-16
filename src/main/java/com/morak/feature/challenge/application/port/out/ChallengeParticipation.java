@@ -8,7 +8,7 @@ import java.util.Optional;
 public interface ChallengeParticipation {
 
 	/** 개설자를 HOST·ACTIVE로 등록한다. 독립 트랜잭션으로 커밋하지 않는다. */
-	void registerHost(long challengeId, long userId, Instant now);
+	long registerHost(long challengeId, long userId, Instant now, int pointAmount);
 
 	/** 포인트 처리가 필요한 대기 신청이 하나라도 있으면 변경 없이 empty를 반환한다. */
 	Optional<List<InvalidatedApplication>> invalidatePendingWithoutPoints(long userId);

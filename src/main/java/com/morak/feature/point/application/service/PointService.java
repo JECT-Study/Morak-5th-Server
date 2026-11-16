@@ -18,6 +18,7 @@ import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -96,6 +97,13 @@ public class PointService {
 								+ " accountId=" + accountId + " balance=" + currentBalance(command.userId()))),
 				(accountId, balanceAfter, now) -> PointTransaction.deposit(
 						accountId, participationId, challengeTitle, amount, balanceAfter, now));
+	}
+
+	/** 챌린지 개설에서 락 순서를 지키기 위해 참가·챌린지 저장 전에 계정 행을 잠근다. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void lockAccountForChallengeCreation(Long userId) {
+		LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
+		accountRepository.lockForUpdate(userId, now);
 	}
 
 	/**

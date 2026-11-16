@@ -23,8 +23,8 @@ class ParticipationCommandService implements ParticipationCommand {
 
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
-	public void registerHost(long challengeId, long userId, Instant now) {
-		participations.save(Participation.host(challengeId, userId, now));
+	public long registerHost(long challengeId, long userId, Instant now, int pointAmount) {
+		return participations.save(Participation.host(challengeId, userId, now, pointAmount)).getId();
 	}
 
 	@Override
