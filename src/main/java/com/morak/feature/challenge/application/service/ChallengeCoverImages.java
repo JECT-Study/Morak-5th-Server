@@ -5,11 +5,17 @@ import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
 import com.morak.feature.challenge.application.port.out.ChallengeCoverStorage;
 import com.morak.feature.challenge.application.service.CreateChallengeService.CreatedChallenge;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.MemoryCacheImageInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,6 +25,7 @@ public class ChallengeCoverImages {
 
 	private static final Logger log = LoggerFactory.getLogger(ChallengeCoverImages.class);
 	public static final int MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+	private static final long MAX_IMAGE_PIXELS = 25_000_000;
 
 	private final Optional<ChallengeCoverStorage> storage;
 	private final CreateChallengeService challenges;
@@ -35,8 +42,10 @@ public class ChallengeCoverImages {
 			throw new BusinessException(ChallengeErrorCode.COVER_IMAGE_TOO_LARGE);
 		}
 		String contentType = imageType(content);
+		validateImage(content, contentType);
 		command.validateStartDate(clock.instant());
-		var bucket = storage.orElseThrow(() -> new BusinessException(ChallengeErrorCode.COVER_STORAGE_UNAVAILABLE));
+		ChallengeCoverStorage bucket = storage.orElseThrow(
+				() -> new BusinessException(ChallengeErrorCode.COVER_STORAGE_UNAVAILABLE));
 		String key = "challenges/" + UUID.randomUUID();
 		try {
 			bucket.upload(key, content, contentType);
@@ -48,6 +57,28 @@ public class ChallengeCoverImages {
 				log.warn("Could not remove unused challenge cover key={}", key);
 			}
 			throw exception;
+		}
+	}
+
+	private static void validateImage(byte[] content, String contentType) {
+		Iterator<ImageReader> readers = ImageIO.getImageReadersByMIMEType(contentType);
+		if (!readers.hasNext()) {
+			throw new BusinessException(ChallengeErrorCode.COVER_STORAGE_UNAVAILABLE);
+		}
+		ImageReader reader = readers.next();
+		try (MemoryCacheImageInputStream input = new MemoryCacheImageInputStream(new ByteArrayInputStream(content))) {
+			reader.setInput(input);
+			reader.addIIOReadWarningListener((source, warning) -> {
+				throw new BusinessException(ChallengeErrorCode.INVALID_COVER_IMAGE);
+			});
+			if ((long) reader.getWidth(0) * reader.getHeight(0) > MAX_IMAGE_PIXELS) {
+				throw new BusinessException(ChallengeErrorCode.INVALID_COVER_IMAGE);
+			}
+			reader.read(0);
+		} catch (IOException exception) {
+			throw new BusinessException(ChallengeErrorCode.INVALID_COVER_IMAGE);
+		} finally {
+			reader.dispose();
 		}
 	}
 
