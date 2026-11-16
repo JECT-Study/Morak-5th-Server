@@ -29,6 +29,9 @@ import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.exception.InviteCodeConflictException;
 import com.morak.feature.point.application.service.PointService;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -193,6 +196,39 @@ class CreateChallengeTransactionIntegrationTest {
 		createWithCover(new byte[ChallengeCoverImages.MAX_IMAGE_BYTES + 1], 0).andExpect(status().is(413));
 		createWithCover(new byte[] {1, 2, 3}, 0).andExpect(status().isBadRequest());
 		verifyNoInteractions(coverStorage);
+	}
+
+	@Test
+	void uploadsExtendedWebpWithAnUnknownChunk() throws Exception {
+		byte[] photo = extendedWebp(1);
+
+		createWithCover(photo, 0).andExpect(status().isCreated());
+
+		verify(coverStorage).upload(any(String.class), eq(photo), eq("image/webp"));
+	}
+
+	@Test
+	void rejectsOversizedWebpFrameBeforeUploading() throws Exception {
+		createWithCover(extendedWebp(6_000), 0)
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("CHALLENGE_INVALID_COVER_IMAGE"));
+
+		verifyNoInteractions(coverStorage);
+	}
+
+	private static byte[] extendedWebp(int frameDimension) {
+		byte[] simple = Base64.getDecoder().decode("UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA");
+		// Wrap the 1×1 image in a VP8X canvas and append an unknown, empty chunk.
+		ByteBuffer data = ByteBuffer.allocate(simple.length + 18 + 8).order(ByteOrder.LITTLE_ENDIAN);
+		data.put(simple, 0, 12);
+		data.putInt(4, data.capacity() - 8);
+		data.put("VP8X".getBytes(StandardCharsets.US_ASCII)).putInt(10).put(new byte[10]);
+		int frameChunk = data.position();
+		data.put(simple, 12, simple.length - 12);
+		data.putShort(frameChunk + 8 + 6, (short) frameDimension);
+		data.putShort(frameChunk + 8 + 8, (short) frameDimension);
+		data.put("JUNK".getBytes(StandardCharsets.US_ASCII)).putInt(0);
+		return data.array();
 	}
 
 	private ResultActions createWithCover(byte[] photo, int pointAmount) throws Exception {
