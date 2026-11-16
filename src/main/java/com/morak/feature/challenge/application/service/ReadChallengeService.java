@@ -41,7 +41,7 @@ public class ReadChallengeService {
 		Long nextCursor = hasNext ? rows.getLast().id() : null;
 		var urls = coverImages.urls(rows.stream().map(ChallengeSummary::coverImageKey).filter(Objects::nonNull).distinct().toList());
 		var items = rows.stream().map(row -> new ChallengeListItem(row.id(), row.title(), row.description(), row.category(),
-				row.startDate(), row.endDate(), row.capacity(), row.currentCount(),
+				row.startDate(), row.endDate(), row.capacity(), row.currentCount(), row.pointAmount(),
 				row.coverImageKey() == null ? null : urls.get(row.coverImageKey()))).toList();
 		return new ChallengePage(items, nextCursor, hasNext);
 	}
@@ -64,7 +64,7 @@ public class ReadChallengeService {
 		return new ChallengeView(challenge.id(), challenge.title(), challenge.description(), challenge.visibility(), challenge.category(),
 				challenge.purpose(), challenge.commonMission(), challenge.verificationRules(), challenge.expectations(),
 				challenge.status(), challenge.startDate(), challenge.endDate(), challenge.capacity(), challenge.currentCount(),
-				myStatus.orElse(null), canApply, coverImageUrl);
+				challenge.pointAmount(), myStatus.orElse(null), canApply, coverImageUrl);
 	}
 
 	public List<CategoryItem> categories() {
@@ -78,10 +78,10 @@ public class ReadChallengeService {
 
 	public record ChallengePage(List<ChallengeListItem> items, Long nextCursor, boolean hasNext) {}
 	public record ChallengeListItem(long id, String title, String description, ChallengeCategory category,
-			LocalDate startDate, LocalDate endDate, int capacity, int currentCount, String coverImageUrl) {}
+			LocalDate startDate, LocalDate endDate, int capacity, int currentCount, int pointAmount, String coverImageUrl) {}
 	public record ChallengeView(long id, String title, String description, String visibility, ChallengeCategory category, String purpose,
 			String commonMission, String verificationRules, String expectations, String status,
 			LocalDate startDate, LocalDate endDate, int capacity, int currentCount,
-			String myParticipationStatus, boolean canApply, String coverImageUrl) {}
+			int pointAmount, String myParticipationStatus, boolean canApply, String coverImageUrl) {}
 	public record CategoryItem(ChallengeCategory code, String name) {}
 }

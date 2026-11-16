@@ -14,9 +14,9 @@ public interface ChallengeReadQuery {
 
 	record ChallengeSummary(long id, String title, String description, ChallengeCategory category,
 			LocalDate startDate, LocalDate endDate,
-			int capacity, int currentCount, String coverImageKey) {}
+			int capacity, int currentCount, int pointAmount, String coverImageKey) {}
 
 	record ChallengeDetail(long id, long ownerUserId, String title, String description, String visibility, ChallengeCategory category,
 			String purpose, String commonMission, String verificationRules, String expectations, String status,
-			LocalDate startDate, LocalDate endDate, int capacity, int currentCount, String coverImageKey) {}
+			LocalDate startDate, LocalDate endDate, int capacity, int currentCount, int pointAmount, String coverImageKey) {}
 }

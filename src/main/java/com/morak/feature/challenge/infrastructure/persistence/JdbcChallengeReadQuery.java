@@ -21,7 +21,8 @@ public class JdbcChallengeReadQuery implements ChallengeReadQuery {
 	@Override
 	public List<ChallengeSummary> findRecruitingPublic(ChallengeCategory category, String keyword, Long cursor, int size) {
 		StringBuilder sql = new StringBuilder("""
-				SELECT id, title, description, category, start_date, end_date, capacity, current_count, cover_image_key
+				SELECT id, title, description, category, start_date, end_date, capacity, current_count,
+					point_amount, cover_image_key
 				FROM morak.challenge
 				WHERE deleted_at IS NULL AND visibility = 'PUBLIC' AND status IN ('RECRUITING', 'START_HELD')
 				AND current_count < capacity
@@ -39,14 +40,15 @@ public class JdbcChallengeReadQuery implements ChallengeReadQuery {
 				rs.getLong("id"), rs.getString("title"), rs.getString("description"),
 				ChallengeCategory.valueOf(rs.getString("category")),
 				rs.getObject("start_date", java.time.LocalDate.class), rs.getObject("end_date", java.time.LocalDate.class),
-				rs.getInt("capacity"), rs.getInt("current_count"), rs.getString("cover_image_key"))).list();
+				rs.getInt("capacity"), rs.getInt("current_count"), rs.getInt("point_amount"),
+				rs.getString("cover_image_key"))).list();
 	}
 
 	@Override
 	public Optional<ChallengeDetail> findById(long challengeId) {
 		return jdbc.sql("""
 				SELECT id, owner_user_id, title, description, visibility, category, purpose, common_mission, verification_rules,
-					expectations, status, start_date, end_date, capacity, current_count, cover_image_key
+					expectations, status, start_date, end_date, capacity, current_count, point_amount, cover_image_key
 				FROM morak.challenge WHERE id = :id AND deleted_at IS NULL
 				""")
 				.param("id", challengeId)
@@ -56,7 +58,8 @@ public class JdbcChallengeReadQuery implements ChallengeReadQuery {
 					ChallengeCategory.valueOf(rs.getString("category")), rs.getString("purpose"), rs.getString("common_mission"),
 					rs.getString("verification_rules"), rs.getString("expectations"), rs.getString("status"),
 					rs.getObject("start_date", java.time.LocalDate.class), rs.getObject("end_date", java.time.LocalDate.class),
-					rs.getInt("capacity"), rs.getInt("current_count"), rs.getString("cover_image_key")))
+					rs.getInt("capacity"), rs.getInt("current_count"), rs.getInt("point_amount"),
+					rs.getString("cover_image_key")))
 				.optional();
 	}
 

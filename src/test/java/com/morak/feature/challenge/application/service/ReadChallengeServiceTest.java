@@ -32,14 +32,15 @@ class ReadChallengeServiceTest {
 	@Test
 	void returnsNextCursorFromLastReturnedRowWhenMoreResultsExist() {
 		when(challenges.findRecruitingPublic(ChallengeCategory.READING, "책", 40L, 3)).thenReturn(List.of(
-				new ChallengeSummary(39, "독서 A", "함께 읽어요", ChallengeCategory.READING, LocalDate.now(), LocalDate.now().plusDays(6), 3, 1, null),
-				new ChallengeSummary(38, "독서 B", null, ChallengeCategory.READING, LocalDate.now(), LocalDate.now().plusDays(6), 3, 1, null),
-				new ChallengeSummary(37, "독서 C", null, ChallengeCategory.READING, LocalDate.now(), LocalDate.now().plusDays(6), 3, 1, null)));
+				new ChallengeSummary(39, "독서 A", "함께 읽어요", ChallengeCategory.READING, LocalDate.now(), LocalDate.now().plusDays(6), 3, 1, 1000, null),
+				new ChallengeSummary(38, "독서 B", null, ChallengeCategory.READING, LocalDate.now(), LocalDate.now().plusDays(6), 3, 1, 0, null),
+				new ChallengeSummary(37, "독서 C", null, ChallengeCategory.READING, LocalDate.now(), LocalDate.now().plusDays(6), 3, 1, 0, null)));
 
 		var page = service.list(ChallengeCategory.READING, "책", 40L, 2);
 
 		assertEquals(2, page.items().size());
 		assertEquals("함께 읽어요", page.items().getFirst().description());
+		assertEquals(1000, page.items().getFirst().pointAmount());
 		assertEquals(38L, page.nextCursor());
 		assertTrue(page.hasNext());
 	}
@@ -88,6 +89,6 @@ class ReadChallengeServiceTest {
 
 	private ChallengeDetail challenge(String visibility, long ownerId) {
 		return new ChallengeDetail(10L, ownerId, "독서", "함께 읽어요", visibility, ChallengeCategory.READING, "목적", "매일 독서",
-				"인증 규칙", null, "RECRUITING", LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 7), 3, 1, "challenges/test");
+				"인증 규칙", null, "RECRUITING", LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 7), 3, 1, 0, "challenges/test");
 	}
 }
