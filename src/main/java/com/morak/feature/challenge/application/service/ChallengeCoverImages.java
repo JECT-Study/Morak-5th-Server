@@ -8,6 +8,7 @@ import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -48,6 +49,18 @@ public class ChallengeCoverImages {
 				log.warn("Could not remove unused challenge cover key={}", key);
 			}
 			throw exception;
+		}
+	}
+
+	public Map<String, String> urls(List<String> keys) {
+		if (keys.isEmpty() || storage.isEmpty()) {
+			return Map.of();
+		}
+		try {
+			return storage.get().signDownloads(keys);
+		} catch (BusinessException exception) {
+			log.warn("Could not sign challenge cover URLs");
+			return Map.of();
 		}
 	}
 

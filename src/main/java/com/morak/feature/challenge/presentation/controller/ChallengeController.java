@@ -2,11 +2,17 @@ package com.morak.feature.challenge.presentation.controller;
 
 import com.morak.common.config.OpenApiConfig;
 import com.morak.common.exception.BusinessException;
+import com.morak.common.exception.CommonErrorCode;
 import com.morak.common.response.ApiResponse;
 import com.morak.feature.auth.application.dto.result.LoginUser;
 import com.morak.feature.challenge.application.service.ChallengeCoverImages;
 import com.morak.feature.challenge.application.service.CreateChallengeService;
 import com.morak.feature.challenge.application.service.CreateChallengeService.CreatedChallenge;
+import com.morak.feature.challenge.application.service.ReadChallengeService;
+import com.morak.feature.challenge.application.service.ReadChallengeService.CategoryItem;
+import com.morak.feature.challenge.application.service.ReadChallengeService.ChallengePage;
+import com.morak.feature.challenge.application.service.ReadChallengeService.ChallengeView;
+import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.presentation.dto.request.CreateChallengeRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,11 +30,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
@@ -37,11 +48,43 @@ import org.springframework.web.multipart.MultipartFile;
 public class ChallengeController {
 
 	private final CreateChallengeService service;
+	private final ReadChallengeService readService;
 	private final ChallengeCoverImages coverImages;
 
-	public ChallengeController(CreateChallengeService service, ChallengeCoverImages coverImages) {
+	public ChallengeController(CreateChallengeService service, ReadChallengeService readService, ChallengeCoverImages coverImages) {
 		this.service = service;
+		this.readService = readService;
 		this.coverImages = coverImages;
+	}
+
+	@GetMapping
+	@Operation(summary = "공개 챌린지 목록", description = "모집 중인 공개 챌린지를 기본 20개, 최대 100개까지 조회합니다.")
+	public ApiResponse<ChallengePage> list(
+			@RequestParam(required = false) ChallengeCategory category,
+			@RequestParam(required = false) String keyword,
+			@RequestParam(required = false) Long cursor,
+			@RequestParam(defaultValue = "20") int size) {
+		return ApiResponse.success(readService.list(category, keyword, cursor, size));
+	}
+
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<ApiResponse<Void>> handleInvalidParameter() {
+		var error = CommonErrorCode.INVALID_REQUEST;
+		return ResponseEntity.status(error.status()).body(ApiResponse.failure(error.code(), error.message()));
+	}
+
+	@GetMapping("/categories")
+	@Operation(summary = "챌린지 카테고리")
+	public ApiResponse<java.util.List<CategoryItem>> categories() {
+		return ApiResponse.success(readService.categories());
+	}
+
+	@GetMapping("/{id}")
+	@Operation(summary = "챌린지 상세", description = "비공개 챌린지는 방장, 참가자 또는 신청자만 조회할 수 있습니다.")
+	public ResponseEntity<ApiResponse<ChallengeView>> get(@PathVariable long id,
+			@AuthenticationPrincipal LoginUser user) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+				.body(ApiResponse.success(readService.get(id, user == null ? null : user.userId().value())));
 	}
 
 	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)

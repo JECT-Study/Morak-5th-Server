@@ -29,7 +29,7 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 	private static final Logger log = LoggerFactory.getLogger(RequestResponseLoggingFilter.class);
 	private static final int MAX_LOG_BODY_LENGTH = 4_096;
 	private static final Pattern SENSITIVE_FIELD =
-			Pattern.compile("password|passwd|token|authorization|secret|credential", Pattern.CASE_INSENSITIVE);
+			Pattern.compile("password|passwd|token|authorization|secret|credential|^coverImageUrl$", Pattern.CASE_INSENSITIVE);
 
 	private final ObjectMapper objectMapper;
 
