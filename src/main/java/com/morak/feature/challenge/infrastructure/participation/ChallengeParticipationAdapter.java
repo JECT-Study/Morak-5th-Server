@@ -17,8 +17,8 @@ class ChallengeParticipationAdapter implements ChallengeParticipation {
 	}
 
 	@Override
-	public void registerHost(long challengeId, long userId, Instant now) {
-		participationCommand.registerHost(challengeId, userId, now);
+	public long registerHost(long challengeId, long userId, Instant now, int pointAmount) {
+		return participationCommand.registerHost(challengeId, userId, now, pointAmount);
 	}
 
 	@Override

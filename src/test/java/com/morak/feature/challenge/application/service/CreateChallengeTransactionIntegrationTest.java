@@ -28,6 +28,7 @@ import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.exception.InviteCodeConflictException;
+import com.morak.feature.point.application.service.PointService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -88,6 +89,7 @@ class CreateChallengeTransactionIntegrationTest {
 	@Autowired private ServiceTokenIssuer tokens;
 	@Autowired private CreateChallengeTransaction transaction;
 	@Autowired private PlatformTransactionManager transactionManager;
+	@Autowired private PointService pointService;
 	@MockitoBean private ChallengeParticipation participants;
 	@MockitoBean private InvalidatedApplicationNotice notices;
 	@MockitoBean private ChallengeCoverStorage coverStorage;
@@ -95,7 +97,7 @@ class CreateChallengeTransactionIntegrationTest {
 	@BeforeEach
 	void clearFixtures() {
 		jdbc.sql("""
-				TRUNCATE morak.challenge, morak.participation, morak.chat_message
+				TRUNCATE morak.challenge, morak.participation, morak.chat_message, morak.point_transaction, morak.point_account CASCADE
 				""").update();
 		jdbc.sql("""
 				INSERT INTO morak.users (id, status, created_at, updated_at)
@@ -105,20 +107,28 @@ class CreateChallengeTransactionIntegrationTest {
 		// 등록 포트가 개설 트랜잭션을 공유하는지 확인하기 위한 테스트용 기록이다.
 		doAnswer(invocation -> {
 			jdbc.sql("""
-					INSERT INTO morak.participation (challenge_id, user_id, role, status, applied_at, joined_at)
-					VALUES (:challengeId, :userId, 'HOST', 'ACTIVE', now(), now())
+					INSERT INTO morak.participation (challenge_id, user_id, role, status, applied_at, joined_at, deposit_amount, point_status)
+					VALUES (:challengeId, :userId, 'HOST', 'ACTIVE', now(), now(), :amount, :pointStatus)
 					""")
 					.param("challengeId", invocation.<Long>getArgument(0))
 					.param("userId", invocation.<Long>getArgument(1))
+					.param("amount", invocation.<Integer>getArgument(3))
+					.param("pointStatus", invocation.<Integer>getArgument(3) > 0 ? "HELD" : "NONE")
 					.update();
-			return null;
-		}).when(participants).registerHost(anyLong(), anyLong(), any(Instant.class));
+			return 100L;
+		}).when(participants).registerHost(anyLong(), anyLong(), any(Instant.class), org.mockito.ArgumentMatchers.anyInt());
 	}
 
 	@Test
 	void createsChallengeThroughApiWithHostRegistrationStubbed() throws Exception {
 		jdbc.sql("UPDATE morak.users SET onboarded_at = now() WHERE id = 1").update();
-		doNothing().when(participants).registerHost(anyLong(), eq(1L), any(Instant.class));
+		doAnswer(invocation -> {
+			jdbc.sql("INSERT INTO morak.participation (challenge_id, user_id, role, status, applied_at, joined_at, deposit_amount, point_status) VALUES (:challengeId, 1, 'HOST', 'ACTIVE', now(), now(), :amount, :pointStatus)")
+					.param("challengeId", invocation.<Long>getArgument(0))
+					.param("amount", invocation.<Integer>getArgument(3))
+					.param("pointStatus", invocation.<Integer>getArgument(3) > 0 ? "HELD" : "NONE").update();
+			return 100L;
+		}).when(participants).registerHost(anyLong(), eq(1L), any(Instant.class), org.mockito.ArgumentMatchers.anyInt());
 		String token = tokens.createAccessToken(new AuthUserId(1L), true).value();
 
 		String requestBody = """
@@ -147,8 +157,8 @@ class CreateChallengeTransactionIntegrationTest {
 				SELECT description FROM morak.challenge
 				WHERE id = :id AND purpose IS NULL AND duration_weeks IS NULL AND end_date - start_date + 1 = 14
 				""").param("id", id).query(String.class).single());
-		verify(participants).registerHost(eq(id), eq(1L), any(Instant.class));
-		assertEquals(0L, number("SELECT count(*) FROM morak.participation"));
+		verify(participants).registerHost(eq(id), eq(1L), any(Instant.class), eq(0));
+		assertEquals(1L, number("SELECT count(*) FROM morak.participation"));
 
 		mvc.perform(post("/challenges")
 				.header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -169,7 +179,8 @@ class CreateChallengeTransactionIntegrationTest {
 
 	@Test
 	void deletesUploadedCoverWhenCreationFails() throws Exception {
-		createWithCover(png(), 1000).andExpect(status().isConflict());
+		pointService.grant(1L, com.morak.feature.point.domain.entity.PointGrantReason.SIGNUP_GIFT, 500, "test:cover:1");
+		createWithCover(png(), 1000).andExpect(status().isBadRequest());
 
 		var key = org.mockito.ArgumentCaptor.forClass(String.class);
 		verify(coverStorage).upload(key.capture(), any(byte[].class), eq("image/png"));
@@ -236,13 +247,45 @@ class CreateChallengeTransactionIntegrationTest {
 	}
 
 	@Test
-	void rejectsCreationThatWouldRequireChargingPoints() {
-		BusinessException error = assertThrows(BusinessException.class,
-				() -> transaction.create(1, command(1000), "000001"));
+	void depositsHostPointsAndPersistsChallengeAmount() {
+		pointService.grant(1L, com.morak.feature.point.domain.entity.PointGrantReason.SIGNUP_GIFT, 5000, "test:signup:1");
+		long id = transaction.create(1, command(1000), "000001");
 
-		assertEquals(ChallengeErrorCode.POINTS_NOT_SUPPORTED, error.getErrorCode());
+		assertEquals(1000L, jdbc.sql("SELECT point_amount FROM morak.challenge WHERE id = :id")
+				.param("id", id).query(Long.class).single());
+		assertEquals(4000L, jdbc.sql("SELECT balance FROM morak.point_account WHERE user_id = 1").query(Long.class).single());
+		assertEquals("DEPOSIT:-1000", jdbc.sql("SELECT type || ':' || amount FROM morak.point_transaction WHERE idempotency_key = 'DEPOSIT:100'")
+				.query(String.class).single());
+		assertEquals(1L, number("SELECT count(*) FROM morak.point_transaction WHERE idempotency_key = 'DEPOSIT:100'"));
+		assertEquals("HELD:1000", jdbc.sql("SELECT point_status || ':' || deposit_amount FROM morak.participation WHERE challenge_id = :id AND user_id = 1")
+				.param("id", id)
+				.query(String.class).single());
+	}
+
+	@Test
+	void rollsBackChallengeHostAndPointChangeWhenBalanceIsInsufficient() {
+		pointService.grant(1L, com.morak.feature.point.domain.entity.PointGrantReason.SIGNUP_GIFT, 500, "test:signup:2");
+
+		assertThrows(BusinessException.class, () -> transaction.create(1, command(1000), "000001"));
+
 		assertEquals(0L, number("SELECT count(*) FROM morak.challenge"));
 		assertEquals(0L, number("SELECT count(*) FROM morak.participation"));
+		assertEquals(500L, jdbc.sql("SELECT balance FROM morak.point_account WHERE user_id = 1").query(Long.class).single());
+		assertEquals(1L, number("SELECT count(*) FROM morak.point_transaction"));
+	}
+
+	@Test
+	void rollsBackPointDepositWhenAnOuterTransactionRollsBack() {
+		pointService.grant(1L, com.morak.feature.point.domain.entity.PointGrantReason.SIGNUP_GIFT, 5000, "test:signup:3");
+		new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			transaction.create(1, command(1000), "000001");
+			status.setRollbackOnly();
+		});
+
+		assertEquals(0L, number("SELECT count(*) FROM morak.challenge"));
+		assertEquals(0L, number("SELECT count(*) FROM morak.participation"));
+		assertEquals(5000L, jdbc.sql("SELECT balance FROM morak.point_account WHERE user_id = 1").query(Long.class).single());
+		assertEquals(1L, number("SELECT count(*) FROM morak.point_transaction"));
 	}
 
 	@Test

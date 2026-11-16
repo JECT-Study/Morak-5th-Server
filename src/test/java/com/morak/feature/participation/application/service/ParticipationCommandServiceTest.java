@@ -30,7 +30,10 @@ class ParticipationCommandServiceTest {
 
 	@Test
 	void registerHostSavesActiveHost() {
-		service.registerHost(10L, 1L, NOW);
+		Participation host = Participation.host(10L, 1L, NOW);
+		ReflectionTestUtils.setField(host, "id", 44L);
+		when(repository.save(any(Participation.class))).thenReturn(host);
+		assertEquals(44L, service.registerHost(10L, 1L, NOW, 0));
 
 		ArgumentCaptor<Participation> saved = ArgumentCaptor.forClass(Participation.class);
 		verify(repository).save(saved.capture());
