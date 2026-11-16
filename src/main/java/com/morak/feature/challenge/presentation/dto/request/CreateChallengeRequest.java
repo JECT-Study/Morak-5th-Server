@@ -23,7 +23,8 @@ public record CreateChallengeRequest(
 		@NotNull LocalDate startDate,
 		@NotNull LocalDate endDate,
 		@NotNull @Schema(type = "integer") BigDecimal capacity,
-		@Schema(type = "integer") BigDecimal pointAmount,
+		@Schema(type = "integer", description = "미설정은 0P. 공개 챌린지는 1,000~5,000P를 500P 단위로 설정할 수 있습니다.",
+				example = "1500") BigDecimal pointAmount,
 		String expectations) {
 
 	/** 생략된 참여 포인트는 0으로 처리하며 소수 값을 반올림하지 않는다. */

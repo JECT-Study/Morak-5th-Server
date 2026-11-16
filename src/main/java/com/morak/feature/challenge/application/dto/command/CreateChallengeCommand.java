@@ -15,6 +15,7 @@ public record CreateChallengeCommand(String title, ChallengeVisibility visibilit
 		int pointAmount, String expectations) {
 
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+	private static final int POINT_AMOUNT_STEP = 500;
 	private static final LocalDate MIN_STORABLE_DATE = LocalDate.of(-4713, 11, 24);
 	private static final LocalDate MAX_STORABLE_DATE = LocalDate.of(5874897, 12, 31);
 
@@ -30,7 +31,8 @@ public record CreateChallengeCommand(String title, ChallengeVisibility visibilit
 		if (capacity < minimumCapacity || capacity > 10) {
 			throw new BusinessException(ChallengeErrorCode.INVALID_CAPACITY);
 		}
-		if (pointAmount != 0 && (visibility != ChallengeVisibility.PUBLIC || pointAmount < 1000 || pointAmount > 5000)) {
+		if (pointAmount != 0 && (visibility != ChallengeVisibility.PUBLIC || pointAmount < 1000
+				|| pointAmount > 5000 || pointAmount % POINT_AMOUNT_STEP != 0)) {
 			throw new BusinessException(ChallengeErrorCode.INVALID_POINT_AMOUNT);
 		}
 	}
