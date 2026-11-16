@@ -62,7 +62,7 @@ public class CreateChallengeTransaction {
 		if (command.pointAmount() > 0) {
 			points.lockAccountForChallengeCreation(ownerId);
 		}
-		long challengeId = challenges.save(command.toChallenge(ownerId, inviteCode, now, coverImageKey)).getId();
+		long challengeId = challenges.save(command.toChallenge(ownerId, inviteCode, coverImageKey)).getId();
 		List<InvalidatedApplication> invalidated = ongoing + 1 == PARTICIPATION_LIMIT
 				? participants.invalidatePendingWithoutPoints(ownerId)
 						.orElseThrow(() -> new BusinessException(ChallengeErrorCode.PENDING_POINTS_NOT_SUPPORTED))

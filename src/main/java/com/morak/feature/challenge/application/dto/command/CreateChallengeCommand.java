@@ -48,8 +48,8 @@ public record CreateChallengeCommand(String title, ChallengeVisibility visibilit
 		}
 	}
 
-	public Challenge toChallenge(long ownerId, String inviteCode, Instant now, String coverImageKey) {
+	public Challenge toChallenge(long ownerId, String inviteCode, String coverImageKey) {
 		return new Challenge(ownerId, title, visibility, category, description, purpose, commonMission, verificationRules,
-				expectations, inviteCode, startDate, endDate, capacity, pointAmount, now, coverImageKey);
+				expectations, inviteCode, startDate, endDate, capacity, pointAmount, coverImageKey);
 	}
 }

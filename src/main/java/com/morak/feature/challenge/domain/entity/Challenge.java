@@ -1,5 +1,6 @@
 package com.morak.feature.challenge.domain.entity;
 
+import com.morak.common.entity.BaseEntity;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
@@ -11,17 +12,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "challenge")
-public class Challenge {
+public class Challenge extends BaseEntity {
 
+	@Getter
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -56,17 +56,11 @@ public class Challenge {
 	@Column(name = "point_amount", nullable = false)
 	private int pointAmount;
 
-	@Column(nullable = false, updatable = false)
-	private LocalDateTime createdAt;
-
-	@Column(nullable = false)
-	private LocalDateTime updatedAt;
-
 	protected Challenge() {}
 
 	public Challenge(long ownerUserId, String title, ChallengeVisibility visibility, ChallengeCategory category,
 			String description, String purpose, String commonMission, String verificationRules, String expectations, String inviteCode,
-			LocalDate startDate, LocalDate endDate, int capacity, int pointAmount, Instant now, String coverImageKey) {
+			LocalDate startDate, LocalDate endDate, int capacity, int pointAmount, String coverImageKey) {
 		this.ownerUserId = ownerUserId;
 		this.title = title;
 		this.visibility = visibility;
@@ -84,11 +78,5 @@ public class Challenge {
 		this.pointAmount = pointAmount;
 		this.status = ChallengeStatus.RECRUITING;
 		this.currentCount = 1;
-		this.createdAt = LocalDateTime.ofInstant(now, ZoneOffset.UTC);
-		this.updatedAt = createdAt;
-	}
-
-	public Long getId() {
-		return id;
 	}
 }
