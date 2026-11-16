@@ -42,6 +42,11 @@ public class CreateChallengeTransaction {
 	/** 사용자 잠금으로 개설을 직렬화하고 방장 등록과 대기 신청 무효화를 함께 저장한다. */
 	@Transactional
 	public long create(long ownerId, CreateChallengeCommand command, String inviteCode) {
+		return create(ownerId, command, inviteCode, null);
+	}
+
+	@Transactional
+	public long create(long ownerId, CreateChallengeCommand command, String inviteCode, String coverImageKey) {
 		if (command.pointAmount() != 0) {
 			throw new BusinessException(ChallengeErrorCode.POINTS_NOT_SUPPORTED);
 		}
@@ -54,7 +59,7 @@ public class CreateChallengeTransaction {
 		}
 		Instant now = clock.instant();
 		command.validateStartDate(now);
-		long challengeId = challenges.save(command.toChallenge(ownerId, inviteCode, now)).getId();
+		long challengeId = challenges.save(command.toChallenge(ownerId, inviteCode, now, coverImageKey)).getId();
 		List<InvalidatedApplication> invalidated = ongoing + 1 == PARTICIPATION_LIMIT
 				? participants.invalidatePendingWithoutPoints(ownerId)
 						.orElseThrow(() -> new BusinessException(ChallengeErrorCode.PENDING_POINTS_NOT_SUPPORTED))

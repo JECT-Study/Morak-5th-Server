@@ -1,18 +1,24 @@
 package com.morak.feature.challenge.presentation.controller;
 
 import com.morak.common.config.OpenApiConfig;
+import com.morak.common.exception.BusinessException;
 import com.morak.common.response.ApiResponse;
 import com.morak.feature.auth.application.dto.result.LoginUser;
+import com.morak.feature.challenge.application.service.ChallengeCoverImages;
 import com.morak.feature.challenge.application.service.CreateChallengeService;
 import com.morak.feature.challenge.application.service.CreateChallengeService.CreatedChallenge;
+import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.presentation.dto.request.CreateChallengeRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Encoding;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import java.io.IOException;
+import java.util.List;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -21,19 +27,24 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/challenges")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public class ChallengeController {
 
 	private final CreateChallengeService service;
+	private final ChallengeCoverImages coverImages;
 
-	public ChallengeController(CreateChallengeService service) {
+	public ChallengeController(CreateChallengeService service, ChallengeCoverImages coverImages) {
 		this.service = service;
+		this.coverImages = coverImages;
 	}
 
-	@PostMapping
+	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
 	@Operation(
 			summary = "챌린지 개설",
 			description = "온보딩을 완료한 사용자가 챌린지를 개설하고 방장으로 등록됩니다.",
@@ -74,11 +85,41 @@ public class ChallengeController {
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(
 				responseCode = "503", description = "참가 연동 또는 필요한 무효화 알림 연동이 준비 중이거나 초대 코드 발급에 실패했습니다.")
 	})
-	@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 	public ResponseEntity<ApiResponse<CreatedChallenge>> create(@AuthenticationPrincipal LoginUser user,
 			@Valid @RequestBody CreateChallengeRequest request) {
+		return created(service.create(user.userId().value(), request.toCommand()));
+	}
+
+	@PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	@Operation(summary = "대표 사진과 함께 챌린지 개설",
+			description = "challenge는 JSON, coverImage는 5MB 이하 사진 한 장입니다.",
+			requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+					content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+							encoding = @Encoding(name = "challenge", contentType = MediaType.APPLICATION_JSON_VALUE))))
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "개설 성공"),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "413", description = "대표 사진 용량 초과")
+	})
+	public ResponseEntity<ApiResponse<CreatedChallenge>> createWithCover(@AuthenticationPrincipal LoginUser user,
+			@Valid @RequestPart("challenge") CreateChallengeRequest request,
+			@RequestPart("coverImage") List<MultipartFile> photos) {
+		if (photos.size() != 1) {
+			throw new BusinessException(ChallengeErrorCode.INVALID_COVER_IMAGE);
+		}
+		MultipartFile photo = photos.getFirst();
+		if (photo.getSize() > ChallengeCoverImages.MAX_IMAGE_BYTES) {
+			throw new BusinessException(ChallengeErrorCode.COVER_IMAGE_TOO_LARGE);
+		}
+		try {
+			return created(coverImages.create(user.userId().value(), request.toCommand(), photo.getBytes()));
+		} catch (IOException exception) {
+			throw new BusinessException(ChallengeErrorCode.INVALID_COVER_IMAGE);
+		}
+	}
+
+	private ResponseEntity<ApiResponse<CreatedChallenge>> created(CreatedChallenge challenge) {
 		return ResponseEntity.status(HttpStatus.CREATED)
 				.cacheControl(CacheControl.noStore())
-				.body(ApiResponse.success(service.create(user.userId().value(), request.toCommand())));
+				.body(ApiResponse.success(challenge));
 	}
 }

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -19,6 +20,7 @@ import com.morak.common.exception.BusinessException;
 import com.morak.feature.auth.application.port.out.ServiceTokenIssuer;
 import com.morak.feature.auth.domain.vo.AuthUserId;
 import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
+import com.morak.feature.challenge.application.port.out.ChallengeCoverStorage;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation.InvalidatedApplication;
 import com.morak.feature.challenge.application.port.out.InvalidatedApplicationNotice;
@@ -30,6 +32,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -48,8 +51,10 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -85,6 +90,7 @@ class CreateChallengeTransactionIntegrationTest {
 	@Autowired private PlatformTransactionManager transactionManager;
 	@MockitoBean private ChallengeParticipation participants;
 	@MockitoBean private InvalidatedApplicationNotice notices;
+	@MockitoBean private ChallengeCoverStorage coverStorage;
 
 	@BeforeEach
 	void clearFixtures() {
@@ -150,6 +156,60 @@ class CreateChallengeTransactionIntegrationTest {
 				.content(requestBody.replace("\"description\": \"매일 함께 책 읽어요\",", "")))
 				.andExpect(status().isBadRequest());
 		assertEquals(1L, number("SELECT count(*) FROM morak.challenge"));
+	}
+
+	@Test
+	void uploadsCoverAndSavesItsKey() throws Exception {
+		byte[] photo = png();
+		createWithCover(photo, 0).andExpect(status().isCreated());
+
+		String key = jdbc.sql("SELECT cover_image_key FROM morak.challenge").query(String.class).single();
+		verify(coverStorage).upload(eq(key), eq(photo), eq("image/png"));
+	}
+
+	@Test
+	void deletesUploadedCoverWhenCreationFails() throws Exception {
+		createWithCover(png(), 1000).andExpect(status().isConflict());
+
+		var key = org.mockito.ArgumentCaptor.forClass(String.class);
+		verify(coverStorage).upload(key.capture(), any(byte[].class), eq("image/png"));
+		verify(coverStorage).delete(key.getValue());
+		assertEquals(0L, number("SELECT count(*) FROM morak.challenge"));
+	}
+
+	@Test
+	void rejectsOversizedAndUnsupportedCoversBeforeUploading() throws Exception {
+		createWithCover(new byte[ChallengeCoverImages.MAX_IMAGE_BYTES + 1], 0).andExpect(status().is(413));
+		createWithCover(new byte[] {1, 2, 3}, 0).andExpect(status().isBadRequest());
+		verifyNoInteractions(coverStorage);
+	}
+
+	private ResultActions createWithCover(byte[] photo, int pointAmount) throws Exception {
+		jdbc.sql("UPDATE morak.users SET onboarded_at = now() WHERE id = 1").update();
+		String token = tokens.createAccessToken(new AuthUserId(1L), true).value();
+		String request = """
+				{
+				"title": "독서",
+				"visibility": "PUBLIC",
+				"category": "READING",
+				"description": "함께 책 읽어요",
+				"commonMission": "미션",
+				"verificationRules": "인증",
+				"startDate": "2026-12-01",
+				"endDate": "2026-12-07",
+				"capacity": 3,
+				"pointAmount": %d
+				}
+				""".formatted(pointAmount);
+		return mvc.perform(multipart("/challenges")
+				.file(new MockMultipartFile("challenge", "challenge.json", MediaType.APPLICATION_JSON_VALUE,
+						request.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+				.file(new MockMultipartFile("coverImage", "cover.png", "image/png", photo))
+				.header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
+	}
+
+	private byte[] png() {
+		return Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD40AAAAASUVORK5CYII=");
 	}
 
 	@Test

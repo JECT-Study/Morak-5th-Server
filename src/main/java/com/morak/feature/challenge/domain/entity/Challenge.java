@@ -40,6 +40,8 @@ public class Challenge {
 	private String commonMission;
 	private String verificationRules;
 	private String expectations;
+	@Column(length = 300)
+	private String coverImageKey;
 
 	@JdbcTypeCode(SqlTypes.CHAR)
 	private String inviteCode;
@@ -62,7 +64,7 @@ public class Challenge {
 
 	public Challenge(long ownerUserId, String title, ChallengeVisibility visibility, ChallengeCategory category,
 			String description, String purpose, String commonMission, String verificationRules, String expectations, String inviteCode,
-			LocalDate startDate, LocalDate endDate, int capacity, Instant now) {
+			LocalDate startDate, LocalDate endDate, int capacity, Instant now, String coverImageKey) {
 		this.ownerUserId = ownerUserId;
 		this.title = title;
 		this.visibility = visibility;
@@ -72,6 +74,7 @@ public class Challenge {
 		this.commonMission = commonMission;
 		this.verificationRules = verificationRules;
 		this.expectations = expectations;
+		this.coverImageKey = coverImageKey;
 		this.inviteCode = inviteCode;
 		this.startDate = startDate;
 		this.endDate = endDate;
