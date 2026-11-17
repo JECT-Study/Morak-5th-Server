@@ -15,7 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 챌린지 참가 지원(위키 §4.3). 포인트가 있는 챌린지는 지원과 동시에 포인트를 건다.
- * 승인 대기 인원은 정원을 넘을 수 있으므로 정원은 승인 시점에 확인한다.
+ * 정원이 다 찬 챌린지(모집 마감)에는 지원할 수 없다. 정원이 남아 있는 동안은 승인 대기 인원이 정원을 넘을 수 있으므로
+ * 승인 시점에 정원을 한 번 더 확인한다.
  * 락 순서는 포인트 계정 → 챌린지 → 참가자다.
  */
 @Service
@@ -54,6 +55,10 @@ public class ApplyParticipationService {
 		}
 		if (!challenge.recruiting()) {
 			throw new BusinessException(ParticipationErrorCode.CHALLENGE_NOT_RECRUITING);
+		}
+		// 정원이 다 차면 모집 마감이라 지원할 수 없다(위키 §4.2, §4.3). 정원 안에서는 승인 대기 인원이 정원을 넘을 수 있다.
+		if (challenge.full()) {
+			throw new BusinessException(ParticipationErrorCode.CHALLENGE_FULL);
 		}
 		if (!challenges.canJoinMore(userId)) {
 			throw new BusinessException(ParticipationErrorCode.PARTICIPATION_LIMIT_EXCEEDED);

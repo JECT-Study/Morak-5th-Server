@@ -37,7 +37,7 @@ public class ParticipationController {
 	@PostMapping
 	@Operation(summary = "챌린지 참가 지원",
 			description = "지원서를 내고 승인 대기 상태가 됩니다. 포인트가 있는 챌린지는 지원과 동시에 포인트를 걸며, "
-					+ "비공개 챌린지는 초대 코드가 필요합니다. 승인 대기 인원은 정원을 넘을 수 있습니다.")
+					+ "비공개 챌린지는 초대 코드가 필요합니다. 정원이 다 찬 챌린지는 모집 마감이라 409입니다.")
 	public ResponseEntity<ApiResponse<AppliedResponse>> apply(
 			@AuthenticationPrincipal LoginUser user,
 			@PathVariable long challengeId,

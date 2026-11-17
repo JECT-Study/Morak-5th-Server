@@ -76,12 +76,12 @@ class ApplyParticipationServiceTest {
 	}
 
 	@Test
-	void doesNotCheckCapacityBecauseWaitingApplicantsMayExceedIt() {
+	void rejectsFullChallengeBecauseRecruitmentIsClosed() {
 		givenChallenge(new ChallengeInfo(CHALLENGE, 1L, "아침 독서", false, "", true, true, 0));
-		givenSavedWithId(44L);
 		when(challenges.canJoinMore(USER)).thenReturn(true);
 
-		assertEquals(44L, service.apply(USER, CHALLENGE, null, null));
+		assertError(ParticipationErrorCode.CHALLENGE_FULL, () -> service.apply(USER, CHALLENGE, null, null));
+		verify(participations, never()).save(any());
 	}
 
 	@Test
