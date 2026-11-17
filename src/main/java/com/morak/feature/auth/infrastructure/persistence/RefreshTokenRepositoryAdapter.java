@@ -24,6 +24,11 @@ public class RefreshTokenRepositoryAdapter implements RefreshTokenRepository {
 	}
 
 	@Override
+	public int revokeAllByUserId(Long userId, LocalDateTime now) {
+		return jpaRepository.revokeAllByUserId(userId, now);
+	}
+
+	@Override
 	public int deleteExpiredBefore(LocalDateTime cutoff) {
 		return jpaRepository.deleteExpiredBefore(cutoff);
 	}

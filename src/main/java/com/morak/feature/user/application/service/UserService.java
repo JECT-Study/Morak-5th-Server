@@ -76,9 +76,10 @@ public class UserService {
 		return UserAuthInfo.from(user);
 	}
 
+	/** 탈퇴와 같은 행 잠금을 쓴다. 잠금 없이 읽으면 탈퇴 커밋 직후 이메일이 다시 저장될 수 있다. */
 	@Transactional
 	public Optional<UserAuthInfo> updateSocialProfile(UserId userId, String email, String profileImageUrl) {
-		return userRepository.findById(userId).map(user -> {
+		return userRepository.findByIdForUpdate(userId).map(user -> {
 			if (user.isActive()) {
 				user.updateSocialProfile(email, profileImageUrl);
 			}

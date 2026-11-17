@@ -203,6 +203,30 @@ class TokenPersistenceIntegrationTest {
 		fail("Second refresh never waited for the token row lock");
 	}
 
+	@Test
+	void logoutAllRevokesOnlyTheUsersUnrevokedTokensAndKeepsFirstRevocationTime() {
+		insertToken("first-login", LocalDateTime.now().plusDays(1));
+		insertToken("second-login", LocalDateTime.now().plusDays(1));
+		logout.logout("first-login");
+		LocalDateTime firstRevokedAt = revocationTime("first-login");
+		long otherUser = jdbc.sql("""
+				INSERT INTO morak.users (status, onboarded_at, created_at, updated_at)
+				VALUES ('ACTIVE', now(), now(), now()) RETURNING id
+				""").query(Long.class).single();
+		jdbc.sql("""
+				INSERT INTO morak.refresh_token (user_id, token_hash, expires_at, created_at)
+				VALUES (:userId, :hash, :expiry, now())
+				""").param("userId", otherUser).param("hash", tokens.hash("other-user-login"))
+				.param("expiry", LocalDateTime.now().plusDays(1)).update();
+
+		logout.logoutAll(userId, LocalDateTime.now());
+
+		assertEquals(firstRevokedAt, revocationTime("first-login"));
+		assertTrue(isRevoked("second-login"));
+		assertFalse(isRevoked("other-user-login"));
+		assertRejected("second-login");
+	}
+
 	private void insertToken(String value, LocalDateTime expiry) {
 		jdbc.sql("""
 				INSERT INTO morak.refresh_token (user_id, token_hash, expires_at, created_at)

@@ -9,7 +9,9 @@ import com.morak.feature.auth.infrastructure.user.UserAuthAdapter;
 import com.morak.feature.auth.infrastructure.token.ServiceTokenProvider;
 import com.morak.feature.user.application.service.UserService;
 import com.morak.feature.user.domain.entity.User;
+import com.morak.feature.user.application.service.WithdrawUserService;
 import com.morak.feature.user.presentation.controller.UserController;
+import com.morak.feature.user.presentation.controller.WithdrawalController;
 import com.morak.feature.user.domain.repository.UserRepository;
 import java.net.URI;
 import java.time.Duration;
@@ -36,12 +38,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = UserController.class,
+@WebMvcTest(controllers = {UserController.class, WithdrawalController.class},
 		properties = "morak.auth.jwt.secret=01234567890123456789012345678901")
 @Import({UserService.class, UserAuthAdapter.class, AuthenticateUserService.class, SecurityConfig.class, LoginUserJwtConverter.class,
 		SecurityConfigTest.OnboardedOnlyController.class})
@@ -64,6 +67,25 @@ class SecurityConfigTest {
 
 	@MockitoBean
 	private org.springframework.data.jpa.mapping.JpaMetamodelMappingContext jpaMappingContext;
+
+	@MockitoBean
+	private WithdrawUserService withdrawUserService;
+
+	@Test
+	void notOnboardedMemberCanWithdraw() throws Exception {
+		User user = userForTermsAgreements();
+		mvc.perform(delete("/users/me").header("Authorization", "Bearer " + token(SECRET, Duration.ofMinutes(30))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.success").value(true));
+		assertFalse(user.isOnboarded());
+		verify(withdrawUserService).withdraw(new UserId(7L));
+	}
+
+	@Test
+	void withdrawalRequiresAuthentication() throws Exception {
+		mvc.perform(delete("/users/me")).andExpect(status().isUnauthorized());
+		verifyNoInteractions(withdrawUserService);
+	}
 
 	@Test
 	void missingTokenUsesCommonResponse() throws Exception {
