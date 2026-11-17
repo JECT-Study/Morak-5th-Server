@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -53,7 +54,7 @@ class CreateChallengeServiceTest {
 	@Test
 	void retriesAnInviteCodeCollisionAndReturnsSixDigits() {
 		CreateChallengeCommand command = command(LocalDate.of(2026, 11, 11));
-		when(transaction.create(eq(1L), eq(command), anyString()))
+		when(transaction.create(eq(1L), eq(command), anyString(), isNull()))
 				.thenThrow(new InviteCodeConflictException(null))
 				.thenReturn(12L);
 
@@ -66,23 +67,23 @@ class CreateChallengeServiceTest {
 	@Test
 	void stopsAfterFiveInviteCodeCollisions() {
 		CreateChallengeCommand command = command(LocalDate.of(2026, 11, 11));
-		when(transaction.create(eq(1L), eq(command), anyString()))
+		when(transaction.create(eq(1L), eq(command), anyString(), isNull()))
 				.thenThrow(new InviteCodeConflictException(null));
 
 		BusinessException error = assertThrows(BusinessException.class, () -> service.create(1L, command));
 
 		assertEquals(ChallengeErrorCode.INVITE_CODE_UNAVAILABLE, error.getErrorCode());
-		verify(transaction, times(5)).create(eq(1L), eq(command), anyString());
+		verify(transaction, times(5)).create(eq(1L), eq(command), anyString(), isNull());
 	}
 
 	@Test
 	void doesNotRetryUnrelatedIntegrityViolation() {
 		CreateChallengeCommand command = command(LocalDate.of(2026, 11, 11));
 		var violation = new DataIntegrityViolationException("unrelated constraint violation");
-		when(transaction.create(eq(1L), eq(command), anyString())).thenThrow(violation);
+		when(transaction.create(eq(1L), eq(command), anyString(), isNull())).thenThrow(violation);
 
 		assertSame(violation, assertThrows(DataIntegrityViolationException.class, () -> service.create(1L, command)));
-		verify(transaction).create(eq(1L), eq(command), anyString());
+		verify(transaction).create(eq(1L), eq(command), anyString(), isNull());
 	}
 
 	@Test
@@ -115,7 +116,7 @@ class CreateChallengeServiceTest {
 				Optional.empty(), owners, Optional.empty(), Clock.systemUTC(), null);
 
 		BusinessException error = assertThrows(BusinessException.class,
-				() -> creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001"));
+				() -> creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001", null));
 
 		assertEquals(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE, error.getErrorCode());
 		verifyNoInteractions(challenges, owners);
@@ -137,7 +138,7 @@ class CreateChallengeServiceTest {
 		var creator = new CreateChallengeTransaction(challenges, reader, Optional.of(participants),
 				mock(ChallengeOwnerLock.class), Optional.empty(), Clock.fixed(now, ZoneOffset.UTC), null);
 
-		assertEquals(12L, creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001"));
+		assertEquals(12L, creator.create(1L, command(LocalDate.of(2026, 11, 11)), "000001", null));
 		verify(participants).registerHost(12L, 1L, now, 0);
 	}
 

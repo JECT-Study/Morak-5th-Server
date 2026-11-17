@@ -43,11 +43,6 @@ public class CreateChallengeTransaction {
 
 	/** 사용자 잠금으로 개설을 직렬화하고 방장 등록과 대기 신청 무효화를 함께 저장한다. */
 	@Transactional
-	public long create(long ownerId, CreateChallengeCommand command, String inviteCode) {
-		return create(ownerId, command, inviteCode, null);
-	}
-
-	@Transactional
 	public long create(long ownerId, CreateChallengeCommand command, String inviteCode, String coverImageKey) {
 		ChallengeParticipation participants = participationPort
 				.orElseThrow(() -> new BusinessException(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE));
@@ -68,9 +63,6 @@ public class CreateChallengeTransaction {
 				: List.of();
 		long participationId = participants.registerHost(challengeId, ownerId, now, command.pointAmount());
 		if (command.pointAmount() > 0) {
-			if (points == null) {
-				throw new BusinessException(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE);
-			}
 			points.deposit(ownerId, participationId, command.title(), command.pointAmount());
 		}
 		if (!invalidated.isEmpty()) {
