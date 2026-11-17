@@ -115,6 +115,26 @@ public class User extends BaseEntity {
 		onboardedAt = now;
 	}
 
+	/**
+	 * 회원 탈퇴. 개인정보를 비식별화하고 상태를 WITHDRAWN으로 바꾼다. 위키 §4.1.
+	 * 탈퇴 가능 여부(진행·시작 대기 챌린지)는 호출 전에 판단한다.
+	 * TODO(D-3): 비식별화 대상과 마케팅 수신 동의 처리는 PM 확인 전 제안값이다.
+	 */
+	public void withdraw(LocalDateTime now) {
+		if (!isActive()) {
+			throw new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND);
+		}
+		email = null;
+		nickname = null;
+		profileImageUrl = null;
+		bio = null;
+		profileLinkUrl = null;
+		interests.clear();
+		marketingAgreed = false;
+		status = "WITHDRAWN";
+		deletedAt = now;
+	}
+
 	public void updateSocialProfile(String email, String profileImageUrl) {
 		if (email != null && !email.isBlank()) {
 			this.email = email;
