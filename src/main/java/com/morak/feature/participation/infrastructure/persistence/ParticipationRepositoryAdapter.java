@@ -7,6 +7,7 @@ import com.morak.feature.participation.domain.exception.ParticipationErrorCode;
 import com.morak.feature.participation.domain.repository.ParticipationRepository;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -35,6 +36,16 @@ class ParticipationRepositoryAdapter implements ParticipationRepository {
 			}
 			throw exception;
 		}
+	}
+
+	@Override
+	public Optional<Participation> findById(long id) {
+		return repository.findById(id);
+	}
+
+	@Override
+	public Optional<Participation> findByIdForUpdate(long id) {
+		return repository.findByIdForUpdate(id);
 	}
 
 	@Override

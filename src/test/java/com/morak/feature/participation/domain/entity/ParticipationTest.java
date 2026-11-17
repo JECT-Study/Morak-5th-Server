@@ -3,6 +3,7 @@ package com.morak.feature.participation.domain.entity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.participation.domain.enums.ParticipationRole;
@@ -52,6 +53,49 @@ class ParticipationTest {
 
 		assertEquals(ParticipationErrorCode.INVALID_STATUS_TRANSITION, error.getErrorCode());
 		assertEquals(ParticipationStatus.ACTIVE, host.getStatus());
+	}
+
+	@Test
+	void applyWithPointsHoldsThem() {
+		Participation application = Participation.apply(10L, 2L, "각오", 1_000, NOW);
+
+		assertTrue(application.isPointHeld());
+		assertEquals(1_000, application.getPointAmount());
+		assertEquals(ParticipationStatus.PENDING, application.getStatus());
+	}
+
+	@Test
+	void approvingPendingApplicationActivatesIt() {
+		Participation application = Participation.apply(10L, 2L, "각오", NOW);
+
+		application.approve(NOW);
+
+		assertEquals(ParticipationStatus.ACTIVE, application.getStatus());
+	}
+
+	@Test
+	void rejectingPendingApplicationRefundsHeldPoints() {
+		Participation application = Participation.apply(10L, 2L, "각오", 1_000, NOW);
+
+		application.reject();
+
+		assertEquals(ParticipationStatus.REJECTED, application.getStatus());
+		assertFalse(application.isPointHeld());
+		assertTrue(application.hasPoints());
+	}
+
+	@Test
+	void approvingOrRejectingNonPendingApplicationIsRejected() {
+		Participation invalidated = Participation.apply(10L, 2L, "각오", NOW);
+		invalidated.invalidate();
+		Participation rejected = Participation.apply(10L, 3L, "각오", NOW);
+		rejected.reject();
+
+		assertThrows(BusinessException.class, () -> invalidated.approve(NOW));
+		assertThrows(BusinessException.class, invalidated::reject);
+		assertThrows(BusinessException.class, () -> rejected.approve(NOW));
+		assertEquals(ParticipationStatus.INVALIDATED, invalidated.getStatus());
+		assertEquals(ParticipationStatus.REJECTED, rejected.getStatus());
 	}
 
 	@Test

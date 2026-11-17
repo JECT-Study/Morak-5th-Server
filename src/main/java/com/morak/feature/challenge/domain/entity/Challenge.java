@@ -79,4 +79,26 @@ public class Challenge extends BaseEntity {
 		this.status = ChallengeStatus.RECRUITING;
 		this.currentCount = 1;
 	}
+
+	public long getOwnerUserId() { return ownerUserId; }
+	public String getTitle() { return title; }
+	public ChallengeVisibility getVisibility() { return visibility; }
+	public String getInviteCode() { return inviteCode; }
+	public ChallengeStatus getStatus() { return status; }
+	public int getCapacity() { return capacity; }
+	public int getCurrentCount() { return currentCount; }
+	public int getPointAmount() { return pointAmount; }
+
+	/** 새 참여자를 받을 수 있는 상태인지 (위키 §4.3: RECRUITING 또는 START_HELD). */
+	public boolean isRecruiting() {
+		return status == ChallengeStatus.RECRUITING || status == ChallengeStatus.START_HELD;
+	}
+
+	/** 승인으로 참여 인원이 늘어난다. 정원 확인은 호출한 쪽이 먼저 하므로, 여기서는 불변식만 지킨다. */
+	public void acceptMember() {
+		if (currentCount >= capacity) {
+			throw new IllegalStateException("정원이 찬 챌린지에 참여자를 더할 수 없습니다: challengeId=" + id);
+		}
+		currentCount++;
+	}
 }
