@@ -8,6 +8,7 @@ import com.morak.feature.challenge.application.port.out.ChallengeParticipation.I
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.application.port.out.InvalidatedApplicationNotice;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import com.morak.feature.challenge.domain.policy.ParticipationLimitPolicy;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
 import com.morak.feature.point.application.service.PointService;
 import java.time.Clock;
@@ -19,10 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CreateChallengeTransaction {
-
-	private static final int PARTICIPATION_LIMIT = 5;
-	// HOTFIX: 동시 참여 5개 제한을 임시로 해제했다(위키 §9 참고). 다시 설정하려면 true로 되돌린다.
-	private static final boolean PARTICIPATION_LIMIT_ENABLED = false;
 
 	private final ChallengeRepository challenges;
 	private final ChallengeParticipationReader participationReader;
@@ -56,7 +53,7 @@ public class CreateChallengeTransaction {
 				.orElseThrow(() -> new BusinessException(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE));
 		owners.lock(ownerId);
 		int ongoing = participationReader.countOngoing(ownerId);
-		if (PARTICIPATION_LIMIT_ENABLED && ongoing >= PARTICIPATION_LIMIT) {
+		if (ParticipationLimitPolicy.isExceeded(ongoing)) {
 			throw new BusinessException(ChallengeErrorCode.PARTICIPATION_LIMIT);
 		}
 		Instant now = clock.instant();
@@ -65,7 +62,7 @@ public class CreateChallengeTransaction {
 			points.lockAccountForChallengeCreation(ownerId);
 		}
 		long challengeId = challenges.save(command.toChallenge(ownerId, inviteCode, coverImageKey)).getId();
-		List<InvalidatedApplication> invalidated = PARTICIPATION_LIMIT_ENABLED && ongoing + 1 == PARTICIPATION_LIMIT
+		List<InvalidatedApplication> invalidated = ParticipationLimitPolicy.reachesLimitWithOneMore(ongoing)
 				? participants.invalidatePendingWithoutPoints(ownerId)
 						.orElseThrow(() -> new BusinessException(ChallengeErrorCode.PENDING_POINTS_NOT_SUPPORTED))
 				: List.of();

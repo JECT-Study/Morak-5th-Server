@@ -13,6 +13,7 @@ import com.morak.feature.challenge.application.query.ChallengeReadQuery.Challeng
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeSummary;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import com.morak.feature.challenge.domain.policy.ParticipationLimitPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -22,9 +23,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class ReadChallengeService {
 
-	private static final int PARTICIPATION_LIMIT = 5;
-	// HOTFIX: 동시 참여 5개 제한을 임시로 해제했다(위키 §9 O-17 참고). 다시 설정하려면 true로 되돌린다.
-	private static final boolean PARTICIPATION_LIMIT_ENABLED = false;
 	private static final int MAX_PAGE_SIZE = 100;
 	private final ChallengeReadQuery challenges;
 	private final ChallengeParticipationReader participations;
@@ -65,7 +63,7 @@ public class ReadChallengeService {
 				&& ("RECRUITING".equals(challenge.status()) || "START_HELD".equals(challenge.status()))
 				&& challenge.currentCount() < challenge.capacity()
 				&& myStatus.isEmpty()
-				&& (!PARTICIPATION_LIMIT_ENABLED || participations.countOngoing(userId) < PARTICIPATION_LIMIT);
+				&& ParticipationLimitPolicy.canJoinMore(() -> participations.countOngoing(userId));
 		String key = challenge.coverImageKey();
 		String coverImageUrl = key == null ? null : coverImages.urls(List.of(key)).get(key);
 		return new ChallengeView(challenge.id(), challenge.title(), challenge.description(), challenge.visibility(), challenge.category(),
