@@ -90,6 +90,8 @@ public class Notification {
 		return new Notification(recipientUserId, type, title, body, targetType, targetId, dedupKey, createdAtUtc);
 	}
 
+	public boolean isRead() { return readAt != null; }
+
 	public Long getId() { return id; }
 	public Long getRecipientUserId() { return recipientUserId; }
 	public NotificationType getType() { return type; }

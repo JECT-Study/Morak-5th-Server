@@ -14,22 +14,18 @@ import com.morak.feature.notification.application.dto.NotifyCommand;
 import com.morak.feature.notification.domain.entity.Notification;
 import com.morak.feature.notification.domain.entity.NotificationType;
 import com.morak.feature.notification.domain.exception.NotificationErrorCode;
-import com.morak.feature.notification.domain.repository.NotificationRepository;
+import com.morak.feature.notification.support.InMemoryNotificationRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class NotificationServiceTest {
 
 	private static final String TITLE = "매일 아침 러닝";
 
-	private final FakeNotificationRepository repository = new FakeNotificationRepository();
+	private final InMemoryNotificationRepository repository = new InMemoryNotificationRepository();
 	private final NotificationService service = new NotificationService(
 			repository, Clock.fixed(Instant.parse("2026-11-17T03:00:00.123456789Z"), ZoneOffset.UTC));
 
@@ -106,20 +102,5 @@ class NotificationServiceTest {
 
 		assertEquals(NotificationErrorCode.INVALID_COMMAND, e.getErrorCode());
 		assertTrue(repository.saved.isEmpty());
-	}
-
-	private static class FakeNotificationRepository implements NotificationRepository {
-
-		private final List<Notification> saved = new ArrayList<>();
-		private final Set<String> dedupKeys = new HashSet<>();
-
-		@Override
-		public boolean saveIfAbsent(Notification notification) {
-			if (notification.getDedupKey() != null && !dedupKeys.add(notification.getDedupKey())) {
-				return false;
-			}
-			saved.add(notification);
-			return true;
-		}
 	}
 }
