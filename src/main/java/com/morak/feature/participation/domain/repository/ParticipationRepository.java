@@ -3,11 +3,17 @@ package com.morak.feature.participation.domain.repository;
 import com.morak.feature.participation.domain.entity.Participation;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface ParticipationRepository {
 
 	/** 같은 챌린지에 이미 참가 정보가 있으면 ALREADY_APPLIED 예외를 던진다. */
 	Participation save(Participation participation);
+
+	Optional<Participation> findById(long id);
+
+	/** 행 잠금으로 가져온다. 승인·거절처럼 상태를 바꾸는 흐름에서 쓴다. */
+	Optional<Participation> findByIdForUpdate(long id);
 
 	/** 사용자의 승인 대기 신청을 행 잠금으로 가져온다. 오래된 신청부터 정렬한다. */
 	List<Participation> findPendingByUserIdForUpdate(long userId);

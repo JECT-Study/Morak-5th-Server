@@ -68,10 +68,48 @@ public class Participation {
 		this.appliedAt = now;
 	}
 
-	/** 지원서를 낸 승인 대기 참가자. 포인트를 거는 지원은 포인트 도메인 연동 후에 별도로 만든다. */
+	/** 지원서를 낸 승인 대기 참가자. 포인트 없는 챌린지의 지원이다. */
 	public static Participation apply(long challengeId, long userId, String applyMessage, Instant now) {
 		return new Participation(challengeId, userId, ParticipationRole.MEMBER, ParticipationStatus.PENDING,
 				applyMessage, toUtc(now));
+	}
+
+	/** 지원서를 낸 승인 대기 참가자. 포인트가 있는 챌린지면 걸어 둔 포인트(HELD)를 함께 기록한다. */
+	public static Participation apply(long challengeId, long userId, String applyMessage, int pointAmount, Instant now) {
+		Participation participation = apply(challengeId, userId, applyMessage, now);
+		if (pointAmount > 0) {
+			participation.pointAmount = pointAmount;
+			participation.pointStatus = ParticipationPointStatus.HELD;
+		}
+		return participation;
+	}
+
+	/** 방장이 승인한다. 승인 대기 상태에서만 가능하며, 승인 시각이 합류 시각이 된다. */
+	public void approve(Instant now) {
+		requirePending(ParticipationStatus.ACTIVE);
+		status = ParticipationStatus.ACTIVE;
+		joinedAt = toUtc(now);
+	}
+
+	/** 방장이 거절한다. 승인 대기 상태에서만 가능하며, 걸린 포인트는 반환 상태로 바뀐다. */
+	public void reject() {
+		requirePending(ParticipationStatus.REJECTED);
+		status = ParticipationStatus.REJECTED;
+		if (pointStatus == ParticipationPointStatus.HELD) {
+			pointStatus = ParticipationPointStatus.REFUNDED;
+		}
+	}
+
+	/** 포인트가 걸려 있어 거절·무효화 때 반환해야 하는지. */
+	public boolean isPointHeld() {
+		return pointStatus == ParticipationPointStatus.HELD;
+	}
+
+	private void requirePending(ParticipationStatus to) {
+		if (status != ParticipationStatus.PENDING) {
+			log.warn("참가 상태 전이 거절: participationId={}, from={}, to={}", id, status, to);
+			throw new BusinessException(ParticipationErrorCode.INVALID_STATUS_TRANSITION);
+		}
 	}
 
 	/** 챌린지를 개설한 방장. 지원·승인 없이 바로 참여 중(ACTIVE)이 된다. */
@@ -94,10 +132,7 @@ public class Participation {
 
 	/** 동시 참여 한도에 걸려 대기 신청이 무효가 된다. 승인 대기 상태에서만 가능하다. */
 	public void invalidate() {
-		if (status != ParticipationStatus.PENDING) {
-			log.warn("참가 상태 전이 거절: participationId={}, from={}, to={}", id, status, ParticipationStatus.INVALIDATED);
-			throw new BusinessException(ParticipationErrorCode.INVALID_STATUS_TRANSITION);
-		}
+		requirePending(ParticipationStatus.INVALIDATED);
 		status = ParticipationStatus.INVALIDATED;
 	}
 

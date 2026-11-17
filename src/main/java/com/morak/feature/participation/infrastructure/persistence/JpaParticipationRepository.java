@@ -5,6 +5,7 @@ import com.morak.feature.participation.domain.enums.ParticipationRole;
 import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -18,6 +19,10 @@ interface JpaParticipationRepository extends JpaRepository<Participation, Long> 
 			order by p.appliedAt, p.id
 			""")
 	List<Participation> findPendingByUserIdForUpdate(long userId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select p from Participation p where p.id = :id")
+	Optional<Participation> findByIdForUpdate(long id);
 
 	List<Participation> findByChallengeIdInAndRole(Collection<Long> challengeIds, ParticipationRole role);
 }
