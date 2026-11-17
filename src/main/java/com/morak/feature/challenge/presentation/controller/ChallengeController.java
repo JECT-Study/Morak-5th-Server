@@ -145,6 +145,21 @@ public class ChallengeController {
 				.body(ApiResponse.success(readService.get(id, user == null ? null : user.userId().value())));
 	}
 
+	@GetMapping("/by-code/{code}")
+	@Operation(summary = "초대 코드로 챌린지 상세 진입",
+			description = "초대 코드·초대 링크로 상세를 조회합니다. 합류하지 않으며, 지원은 참가 API를 따로 호출합니다.")
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "유효하지 않은 코드입니다"),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "410", description = "이미 종료된 챌린지입니다"),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "10분 안에 코드를 10번 잘못 입력해 10분 동안 조회할 수 없습니다")
+	})
+	public ResponseEntity<ApiResponse<ChallengeView>> getByCode(@PathVariable String code,
+			@AuthenticationPrincipal LoginUser user) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+				.body(ApiResponse.success(readService.getByInviteCode(code, user.userId().value())));
+	}
+
 	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
 	@Operation(
 			summary = "챌린지 개설",

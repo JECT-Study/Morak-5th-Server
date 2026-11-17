@@ -18,6 +18,8 @@ public interface ChallengeReadQuery {
 	/** 내 챌린지 목록용 일괄 조회. 삭제됐거나 없는 id는 결과에 없다. */
 	List<ChallengeDetail> findByIds(Collection<Long> challengeIds);
 
+	Optional<ChallengeDetail> findByInviteCode(String inviteCode);
+
 	record ChallengeSummary(long id, String title, String description, ChallengeCategory category,
 			LocalDate startDate, LocalDate endDate,
 			int capacity, int currentCount, int pointAmount, String coverImageKey) {}

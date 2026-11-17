@@ -58,6 +58,14 @@ public class JdbcChallengeReadQuery implements ChallengeReadQuery {
 	}
 
 	@Override
+	public Optional<ChallengeDetail> findByInviteCode(String inviteCode) {
+		return jdbc.sql("SELECT " + DETAIL_COLUMNS + " FROM morak.challenge WHERE invite_code = :inviteCode AND deleted_at IS NULL")
+				.param("inviteCode", inviteCode)
+				.query((rs, rowNum) -> toDetail(rs))
+				.optional();
+	}
+
+	@Override
 	public List<ChallengeDetail> findByIds(Collection<Long> challengeIds) {
 		if (challengeIds.isEmpty()) {
 			return List.of();
