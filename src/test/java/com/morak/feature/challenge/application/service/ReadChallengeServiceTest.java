@@ -4,17 +4,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
+import com.morak.common.exception.RateLimitedException;
 import com.morak.feature.challenge.application.dto.query.ListChallengesQuery;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.application.port.out.InviteCodeAttemptLimiter;
+import com.morak.feature.challenge.application.port.out.InviteCodeAttemptLimiter.Decision;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeDetail;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeSummary;
@@ -22,10 +27,12 @@ import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -38,6 +45,11 @@ class ReadChallengeServiceTest {
 	private final ChallengeCoverImages coverImages = mock(ChallengeCoverImages.class);
 	private final InviteCodeAttemptLimiter attemptLimiter = mock(InviteCodeAttemptLimiter.class);
 	private final ReadChallengeService service = new ReadChallengeService(challenges, participations, coverImages, attemptLimiter);
+
+	@BeforeEach
+	void allowInviteCodeAttempts() {
+		when(attemptLimiter.tryAcquire(anyLong())).thenReturn(Decision.allow());
+	}
 
 	@Test
 	void returnsNextCursorFromLastReturnedRowWhenMoreResultsExist() {
@@ -129,29 +141,31 @@ class ReadChallengeServiceTest {
 
 		assertEquals(ChallengeErrorCode.INVALID_INVITE_CODE, error.getErrorCode());
 		assertEquals("유효하지 않은 코드입니다", error.getErrorCode().message());
-		verify(attemptLimiter).recordFailure(30L);
+		verify(attemptLimiter).release(30L, true);
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"", "12345", "1234567"})
-	void rejectsInviteCodeWithWrongLengthWithoutQuerying(String code) {
+	@ValueSource(strings = {"", "12345", "1234567", "12a456", "１２３４５６"})
+	void rejectsInviteCodeWithWrongFormatWithoutQuerying(String code) {
 		BusinessException error = assertThrows(BusinessException.class, () -> service.getByInviteCode(code, 30L));
 
 		assertEquals(ChallengeErrorCode.INVALID_INVITE_CODE, error.getErrorCode());
-		verify(attemptLimiter).recordFailure(30L);
+		verify(attemptLimiter).release(30L, true);
 		verifyNoInteractions(challenges);
 	}
 
 	@Test
 	void blocksEvenValidInviteCodeWhenAttemptsExceeded() {
-		when(attemptLimiter.isBlocked(30L)).thenReturn(true);
+		when(attemptLimiter.tryAcquire(30L)).thenReturn(Decision.deny(Duration.ofSeconds(90)));
 
-		BusinessException error = assertThrows(BusinessException.class, () -> service.getByInviteCode("123456", 30L));
+		RateLimitedException error = assertThrows(RateLimitedException.class, () -> service.getByInviteCode("123456", 30L));
 
 		assertEquals(ChallengeErrorCode.INVITE_CODE_ATTEMPTS_EXCEEDED, error.getErrorCode());
 		assertEquals(429, error.getErrorCode().status().value());
+		assertEquals(90, error.retryAfterSeconds());
+		assertEquals("userId=30", error.getDetail());
 		verifyNoInteractions(challenges);
-		verify(attemptLimiter, never()).recordFailure(30L);
+		verify(attemptLimiter, never()).release(anyLong(), anyBoolean());
 	}
 
 	@Test
@@ -163,7 +177,17 @@ class ReadChallengeServiceTest {
 		service.getByInviteCode("123456", 30L);
 		assertThrows(BusinessException.class, () -> service.getByInviteCode("654321", 30L));
 
-		verify(attemptLimiter, never()).recordFailure(30L);
+		verify(attemptLimiter, times(2)).release(30L, false);
+		verify(attemptLimiter, never()).release(30L, true);
+	}
+
+	@Test
+	void releasesAttemptWithoutFailureWhenLookupThrows() {
+		when(challenges.findByInviteCode("123456")).thenThrow(new IllegalStateException("db down"));
+
+		assertThrows(IllegalStateException.class, () -> service.getByInviteCode("123456", 30L));
+
+		verify(attemptLimiter).release(30L, false);
 	}
 
 	@ParameterizedTest
@@ -173,7 +197,8 @@ class ReadChallengeServiceTest {
 
 		BusinessException error = assertThrows(BusinessException.class, () -> service.getByInviteCode("123456", 30L));
 
-		assertEquals(ChallengeErrorCode.CHALLENGE_ALREADY_ENDED, error.getErrorCode());
+		assertEquals(ChallengeErrorCode.ALREADY_ENDED, error.getErrorCode());
+		assertEquals("CHALLENGE_ALREADY_ENDED", error.getErrorCode().code());
 		assertEquals("이미 종료된 챌린지입니다", error.getErrorCode().message());
 		verifyNoInteractions(participations, coverImages);
 	}

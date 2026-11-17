@@ -43,6 +43,14 @@ class GlobalExceptionHandlerTest {
 	}
 
 	@Test
+	void rateLimitedExceptionAddsRetryAfterSecondsRoundedUp() {
+		var response = handler.handleBusinessException(
+				new RateLimitedException(CommonErrorCode.INVALID_REQUEST, java.time.Duration.ofMillis(1500), "userId=10"),
+				new MockHttpServletRequest("GET", "/challenges/by-code/123456"));
+		assertEquals("2", response.getHeaders().getFirst("Retry-After"));
+	}
+
+	@Test
 	void businessExceptionDetailIsNotExposedInResponse() {
 		var response = handler.handleBusinessException(
 				new BusinessException(CommonErrorCode.INVALID_REQUEST, "userId=10 balance=2999"),

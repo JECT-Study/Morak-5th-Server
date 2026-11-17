@@ -2,6 +2,7 @@ package com.morak.feature.challenge.application.service;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
+import com.morak.common.exception.RateLimitedException;
 import com.morak.feature.challenge.application.dto.query.ListChallengesQuery;
 import com.morak.feature.challenge.application.dto.result.CategoryItem;
 import com.morak.feature.challenge.application.dto.result.ChallengeListItem;
@@ -16,6 +17,7 @@ import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import com.morak.feature.challenge.domain.policy.InviteCodePolicy;
 import com.morak.feature.challenge.domain.policy.ParticipationLimitPolicy;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -29,7 +31,6 @@ import org.springframework.stereotype.Service;
 public class ReadChallengeService {
 
 	private static final int MAX_PAGE_SIZE = 100;
-	private static final int INVITE_CODE_LENGTH = 6;
 	private static final Set<ChallengeStatus> ENDED_STATUSES =
 			EnumSet.of(ChallengeStatus.FINALIZING, ChallengeStatus.ENDED, ChallengeStatus.DISCARDED);
 	private final ChallengeReadQuery challenges;
@@ -79,20 +80,25 @@ public class ReadChallengeService {
 	 * 종료·폐기된 챌린지는 상세 대신 "이미 종료된 챌린지입니다"로 구분한다. FINALIZING도 종료로 본다.
 	 */
 	public ChallengeView getByInviteCode(String inviteCode, long userId) {
-		// 무차별 대입 방지(D-39): 유효하지 않은 코드만 세고, 한도를 넘으면 맞는 코드도 잠시 막는다.
-		if (attemptLimiter.isBlocked(userId)) {
-			throw new BusinessException(ChallengeErrorCode.INVITE_CODE_ATTEMPTS_EXCEEDED);
+		// 무차별 대입 방지(D-39): 조회 전에 시도 한 칸을 선점하고, 유효하지 않은 코드만 실패로 센다.
+		// 한도를 넘으면 맞는 코드도 잠시 막는다.
+		var decision = attemptLimiter.tryAcquire(userId);
+		if (!decision.allowed()) {
+			throw new RateLimitedException(ChallengeErrorCode.INVITE_CODE_ATTEMPTS_EXCEEDED, decision.retryAfter(),
+					"userId=" + userId);
 		}
-		Optional<ChallengeDetail> found = inviteCode == null || inviteCode.length() != INVITE_CODE_LENGTH
-				? Optional.empty()
-				: challenges.findByInviteCode(inviteCode);
-		if (found.isEmpty()) {
-			attemptLimiter.recordFailure(userId);
-			throw new BusinessException(ChallengeErrorCode.INVALID_INVITE_CODE);
+		Optional<ChallengeDetail> found;
+		try {
+			found = InviteCodePolicy.matchesFormat(inviteCode) ? challenges.findByInviteCode(inviteCode) : Optional.empty();
+		} catch (RuntimeException exception) {
+			// 조회 자체가 실패한 경우는 사용자의 잘못된 입력이 아니므로 실패로 세지 않는다.
+			attemptLimiter.release(userId, false);
+			throw exception;
 		}
-		ChallengeDetail challenge = found.get();
+		attemptLimiter.release(userId, found.isEmpty());
+		ChallengeDetail challenge = found.orElseThrow(() -> new BusinessException(ChallengeErrorCode.INVALID_INVITE_CODE));
 		if (ENDED_STATUSES.contains(challenge.status())) {
-			throw new BusinessException(ChallengeErrorCode.CHALLENGE_ALREADY_ENDED);
+			throw new BusinessException(ChallengeErrorCode.ALREADY_ENDED);
 		}
 		return toView(challenge, userId, participations.findStatus(challenge.id(), userId));
 	}

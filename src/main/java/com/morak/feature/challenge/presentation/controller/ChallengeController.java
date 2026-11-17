@@ -152,7 +152,7 @@ public class ChallengeController {
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "유효하지 않은 코드입니다"),
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "410", description = "이미 종료된 챌린지입니다"),
-		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "10분 안에 코드를 10번 잘못 입력해 10분 동안 조회할 수 없습니다")
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "10분 안에 코드를 10번 잘못 입력해 10분 동안 조회할 수 없습니다. Retry-After 헤더(초)로 남은 시간을 알려 줍니다.")
 	})
 	public ResponseEntity<ApiResponse<ChallengeView>> getByCode(@PathVariable String code,
 			@AuthenticationPrincipal LoginUser user) {
