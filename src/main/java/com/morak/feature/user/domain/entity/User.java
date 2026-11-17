@@ -30,6 +30,9 @@ import org.hibernate.annotations.DynamicUpdate;
 @Getter
 public class User extends BaseEntity {
 
+	private static final String STATUS_ACTIVE = "ACTIVE";
+	private static final String STATUS_WITHDRAWN = "WITHDRAWN";
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -56,7 +59,7 @@ public class User extends BaseEntity {
 	private Set<String> interests = new HashSet<>();
 
 	@Column(nullable = false, length = 20)
-	private String status = "ACTIVE";
+	private String status = STATUS_ACTIVE;
 
 	@Column(name = "terms_agreed_at")
 	private LocalDateTime termsAgreedAt;
@@ -80,7 +83,7 @@ public class User extends BaseEntity {
 	public UserId userId() { return new UserId(id); }
 	public boolean hasAgreedToTerms() { return termsAgreedAt != null; }
 	public boolean isOnboarded() { return onboardedAt != null; }
-	public boolean isActive() { return "ACTIVE".equals(status) && deletedAt == null; }
+	public boolean isActive() { return STATUS_ACTIVE.equals(status) && deletedAt == null; }
 
 	public void agreeToTerms(TermsAgreements agreements, LocalDateTime now) {
 		if (hasAgreedToTerms()) {
@@ -118,7 +121,7 @@ public class User extends BaseEntity {
 	/**
 	 * 회원 탈퇴. 개인정보를 비식별화하고 상태를 WITHDRAWN으로 바꾼다. 위키 §4.1.
 	 * 탈퇴 가능 여부(진행·시작 대기 챌린지)는 호출 전에 판단한다.
-	 * TODO(D-3): 비식별화 대상과 마케팅 수신 동의 처리는 PM 확인 전 제안값이다.
+	 * TODO(D-3): 비식별화 대상은 PM 확인 전 제안값이다. 마케팅 수신 동의는 위키에 정해진 바가 없어 건드리지 않는다(O-18).
 	 */
 	public void withdraw(LocalDateTime now) {
 		if (!isActive()) {
@@ -130,8 +133,7 @@ public class User extends BaseEntity {
 		bio = null;
 		profileLinkUrl = null;
 		interests.clear();
-		marketingAgreed = false;
-		status = "WITHDRAWN";
+		status = STATUS_WITHDRAWN;
 		deletedAt = now;
 	}
 

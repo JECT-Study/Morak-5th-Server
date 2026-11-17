@@ -16,7 +16,11 @@ public interface JpaRefreshTokenRepository extends JpaRepository<RefreshToken, L
 	@Query("select token from RefreshToken token where token.tokenHash = :tokenHash")
 	Optional<RefreshToken> findByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
 
-	@Modifying
+	/**
+	 * 벌크 UPDATE라 이미 로드된 RefreshToken 엔티티에는 반영되지 않는다. 같은 트랜잭션에서 토큰을 먼저 조회했다면 refresh()로 다시 읽는다.
+	 * clearAutomatically는 쓰지 않는다. 같은 트랜잭션에서 잠가 둔 User 등 다른 엔티티까지 떨어져 나가 변경이 사라진다.
+	 */
+	@Modifying(flushAutomatically = true)
 	@Query("update RefreshToken token set token.revokedAt = :now where token.userId = :userId and token.revokedAt is null")
 	int revokeAllByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 

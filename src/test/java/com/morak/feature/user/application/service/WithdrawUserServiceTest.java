@@ -46,7 +46,7 @@ class WithdrawUserServiceTest {
 
 		assertFalse(user.isActive());
 		assertEquals(LocalDateTime.of(2026, 11, 17, 3, 0), user.getDeletedAt());
-		verify(sessions).revokeAll(7L);
+		verify(sessions).revokeAll(7L, LocalDateTime.of(2026, 11, 17, 3, 0));
 	}
 
 	@Test

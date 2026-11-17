@@ -42,13 +42,17 @@ public class WithdrawUserService {
 	public void withdraw(UserId userId) {
 		User user = users.findByIdForUpdate(userId)
 				.filter(User::isActive)
-				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
+				.orElseThrow(() -> {
+					log.warn("탈퇴 거절: 없거나 이미 탈퇴한 사용자다. userId={}", userId.value());
+					return new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND);
+				});
 		if (participations.countOngoing(userId.value()) > 0) {
 			log.warn("탈퇴 거절: 진행·시작 대기 챌린지가 있다. userId={}", userId.value());
 			throw new BusinessException(UserErrorCode.WITHDRAWAL_NOT_ALLOWED);
 		}
 		// TODO(D-3): 승인 대기(PENDING) 신청, 포인트 잔액, 재가입 정책은 PM 확인 전이다. 지금은 건드리지 않는다.
-		sessions.revokeAll(userId.value());
-		user.withdraw(LocalDateTime.now(clock));
+		LocalDateTime now = LocalDateTime.now(clock);
+		sessions.revokeAll(userId.value(), now);
+		user.withdraw(now);
 	}
 }

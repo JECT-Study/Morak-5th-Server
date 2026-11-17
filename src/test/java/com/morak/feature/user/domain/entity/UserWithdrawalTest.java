@@ -30,7 +30,8 @@ class UserWithdrawalTest {
 		assertNull(user.getBio());
 		assertNull(user.getProfileLinkUrl());
 		assertTrue(((Set<?>) ReflectionTestUtils.getField(user, "interests")).isEmpty());
-		assertFalse(user.isMarketingAgreed());
+		// 마케팅 수신 동의는 위키에 정해진 바가 없어 바꾸지 않는다(O-18).
+		assertTrue(user.isMarketingAgreed());
 		assertEquals("WITHDRAWN", user.getStatus());
 		assertEquals(NOW, user.getDeletedAt());
 		assertFalse(user.isActive());

@@ -219,7 +219,7 @@ class TokenPersistenceIntegrationTest {
 				""").param("userId", otherUser).param("hash", tokens.hash("other-user-login"))
 				.param("expiry", LocalDateTime.now().plusDays(1)).update();
 
-		logout.logoutAll(userId);
+		logout.logoutAll(userId, LocalDateTime.now());
 
 		assertEquals(firstRevokedAt, revocationTime("first-login"));
 		assertTrue(isRevoked("second-login"));

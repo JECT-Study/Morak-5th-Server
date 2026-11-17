@@ -28,7 +28,7 @@ public class LogoutService {
 
 	/** 회원 탈퇴처럼 한 사용자의 모든 로그인 세션을 끊을 때 쓴다. 이미 폐기된 토큰의 폐기 시각은 유지한다. */
 	@Transactional
-	public void logoutAll(long userId) {
-		refreshTokens.revokeAllByUserId(userId, LocalDateTime.now());
+	public void logoutAll(long userId, LocalDateTime now) {
+		refreshTokens.revokeAllByUserId(userId, now);
 	}
 }
