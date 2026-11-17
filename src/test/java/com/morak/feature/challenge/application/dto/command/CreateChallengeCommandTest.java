@@ -1,4 +1,4 @@
-package com.morak.feature.challenge.application.dto;
+package com.morak.feature.challenge.application.dto.command;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,13 +48,13 @@ class CreateChallengeCommandTest {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"PUBLIC,999", "PUBLIC,5001", "PRIVATE,1000", "PUBLIC,-1"})
+	@CsvSource({"PUBLIC,999", "PUBLIC,1250", "PUBLIC,4999", "PUBLIC,5001", "PRIVATE,1000", "PUBLIC,-1"})
 	void rejectsInvalidPoints(ChallengeVisibility visibility, int amount) {
 		assertError(ChallengeErrorCode.INVALID_POINT_AMOUNT, visibility, 3, amount, 7);
 	}
 
 	@ParameterizedTest
-	@CsvSource({"PUBLIC,0", "PUBLIC,1000", "PUBLIC,5000", "PRIVATE,0"})
+	@CsvSource({"PUBLIC,0", "PUBLIC,1000", "PUBLIC,1500", "PUBLIC,5000", "PRIVATE,0"})
 	void acceptsValidPoints(ChallengeVisibility visibility, int amount) {
 		assertDoesNotThrow(() -> command(visibility, 3, amount, 7));
 	}

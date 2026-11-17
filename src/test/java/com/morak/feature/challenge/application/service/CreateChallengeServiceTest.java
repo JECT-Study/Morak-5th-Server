@@ -15,7 +15,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.morak.common.exception.BusinessException;
-import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.command.CreateChallengeCommand;
 import com.morak.feature.challenge.application.port.out.ChallengeOwnerLock;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;

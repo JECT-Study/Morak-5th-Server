@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.auth.application.port.out.ServiceTokenIssuer;
 import com.morak.feature.auth.domain.vo.AuthUserId;
-import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.command.CreateChallengeCommand;
 import com.morak.feature.challenge.application.port.out.ChallengeCoverStorage;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation.InvalidatedApplication;
@@ -44,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -336,6 +337,7 @@ class CreateChallengeTransactionIntegrationTest {
 	}
 
 	@Test
+	@Disabled("HOTFIX: 동시 참여 5개 제한 임시 해제. 제한을 복구할 때 함께 활성화한다")
 	void onlyOneConcurrentCreationReachesTheLimitAndInvalidatesPendingApplication() throws Exception {
 		long otherChallenge = createWithFourActiveChallenges();
 		when(participants.invalidatePendingWithoutPoints(1L))
@@ -355,6 +357,7 @@ class CreateChallengeTransactionIntegrationTest {
 	}
 
 	@Test
+	@Disabled("HOTFIX: 동시 참여 5개 제한 임시 해제. 제한을 복구할 때 함께 활성화한다")
 	void rejectsFifthCreationWhenParticipationPortRequiresPointHandling() {
 		createWithFourActiveChallenges();
 		when(participants.invalidatePendingWithoutPoints(1L)).thenReturn(Optional.empty());

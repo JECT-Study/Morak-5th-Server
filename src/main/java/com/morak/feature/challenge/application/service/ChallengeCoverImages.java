@@ -1,9 +1,9 @@
 package com.morak.feature.challenge.application.service;
 
 import com.morak.common.exception.BusinessException;
-import com.morak.feature.challenge.application.dto.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.command.CreateChallengeCommand;
+import com.morak.feature.challenge.application.dto.result.CreatedChallenge;
 import com.morak.feature.challenge.application.port.out.ChallengeCoverStorage;
-import com.morak.feature.challenge.application.service.CreateChallengeService.CreatedChallenge;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import javax.imageio.ImageIO;
@@ -60,6 +61,18 @@ public class ChallengeCoverImages {
 				log.warn("Could not remove unused challenge cover key={}", key);
 			}
 			throw exception;
+		}
+	}
+
+	public Map<String, String> urls(List<String> keys) {
+		if (keys.isEmpty() || storage.isEmpty()) {
+			return Map.of();
+		}
+		try {
+			return storage.get().signDownloads(keys);
+		} catch (BusinessException exception) {
+			log.warn("Could not sign challenge cover URLs");
+			return Map.of();
 		}
 	}
 

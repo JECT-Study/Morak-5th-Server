@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -12,7 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 class SupabaseChallengeCoverStorageTest {
 
 	@Test
-	void uploadsAndDeletesThroughStorageHttpApi() throws Exception {
+	void uploadsSignsAndDeletesThroughStorageHttpApi() throws Exception {
 		String key = "challenges/test-cover";
 		byte[] image = {1, 2, 3};
 		var requests = new LinkedBlockingQueue<StorageRequest>();
@@ -23,7 +26,16 @@ class SupabaseChallengeCoverStorageTest {
 				String path = exchange.getRequestURI().getPath();
 				requests.add(new StorageRequest(exchange.getRequestMethod(), path, headers.getFirst("apikey"),
 						headers.getFirst("Content-Type"), headers.getFirst("x-upsert"), exchange.getRequestBody().readAllBytes()));
-				exchange.sendResponseHeaders(200, -1);
+				if (path.equals("/storage/v1/object/sign/covers")) {
+					byte[] result = """
+							[{"path":"challenges/test-cover","signedURL":"/object/sign/covers/challenges/test-cover?token=test"}]
+							""".getBytes(StandardCharsets.UTF_8);
+					exchange.getResponseHeaders().set("Content-Type", "application/json");
+					exchange.sendResponseHeaders(200, result.length);
+					exchange.getResponseBody().write(result);
+				} else {
+					exchange.sendResponseHeaders(200, -1);
+				}
 			}
 		});
 		server.start();
@@ -32,6 +44,8 @@ class SupabaseChallengeCoverStorageTest {
 			String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
 			var storage = new SupabaseChallengeCoverStorage(baseUrl, "sb_secret_test", "covers");
 			storage.upload(key, image, "image/png");
+			assertEquals(Map.of(key, baseUrl + "/storage/v1/object/sign/covers/" + key + "?token=test"),
+					storage.signDownloads(List.of(key)));
 			storage.delete(key);
 
 			var upload = requests.remove();
@@ -43,6 +57,11 @@ class SupabaseChallengeCoverStorageTest {
 			assertArrayEquals(image, upload.body());
 
 			var mapper = new ObjectMapper();
+			var sign = requests.remove();
+			assertEquals("POST", sign.method());
+			assertEquals("/storage/v1/object/sign/covers", sign.path());
+			assertEquals(key, mapper.readTree(sign.body()).path("paths").get(0).asString());
+
 			var delete = requests.remove();
 			assertEquals("DELETE", delete.method());
 			assertEquals("/storage/v1/object/covers", delete.path());

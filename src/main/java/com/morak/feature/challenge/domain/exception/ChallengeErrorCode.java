@@ -11,11 +11,12 @@ public enum ChallengeErrorCode implements ErrorCode {
 	INVALID_COVER_IMAGE(HttpStatus.BAD_REQUEST, "JPEG, PNG, WebP 사진을 선택해 주세요."),
 	COVER_IMAGE_TOO_LARGE(HttpStatus.valueOf(413), "대표 사진은 5MB 이하로 줄여 주세요."),
 	COVER_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 처리할 수 없습니다. 다시 시도해 주세요."),
-	INVALID_POINT_AMOUNT(HttpStatus.BAD_REQUEST, "참여 포인트는 공개 챌린지에만 1,000~5,000P로 설정할 수 있습니다."),
+	INVALID_POINT_AMOUNT(HttpStatus.BAD_REQUEST, "참여 포인트는 0P 또는 공개 챌린지에서 1,000~5,000P를 500P 단위로 설정할 수 있습니다."),
 	PARTICIPATION_LIMIT(HttpStatus.CONFLICT, "참여 가능한 챌린지를 초과했습니다"),
 	PENDING_POINTS_NOT_SUPPORTED(HttpStatus.CONFLICT, "참여 포인트가 걸린 대기 신청을 처리할 수 없어 개설할 수 없습니다."),
 	CREATION_INTEGRATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "챌린지 개설 기능을 준비 중입니다."),
-	INVITE_CODE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "초대 코드를 발급하지 못했습니다. 다시 시도해 주세요.");
+	INVITE_CODE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "초대 코드를 발급하지 못했습니다. 다시 시도해 주세요."),
+	PRIVATE_CHALLENGE_FORBIDDEN(HttpStatus.FORBIDDEN, "비공개 챌린지를 조회할 권한이 없습니다.");
 
 	private final HttpStatus status;
 	private final String message;
