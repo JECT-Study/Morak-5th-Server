@@ -3,6 +3,7 @@ package com.morak.feature.challenge.infrastructure.persistence;
 import com.morak.feature.challenge.domain.entity.Challenge;
 import com.morak.feature.challenge.domain.exception.InviteCodeConflictException;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
+import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -31,5 +32,15 @@ class ChallengeRepositoryAdapter implements ChallengeRepository {
 			}
 			throw exception;
 		}
+	}
+
+	@Override
+	public Optional<Challenge> findById(long id) {
+		return repository.findById(id);
+	}
+
+	@Override
+	public Optional<Challenge> findByIdForUpdate(long id) {
+		return repository.findByIdForUpdate(id);
 	}
 }
