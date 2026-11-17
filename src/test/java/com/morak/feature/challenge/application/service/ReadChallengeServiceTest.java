@@ -16,6 +16,8 @@ import com.morak.feature.challenge.application.query.ChallengeReadQuery;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeDetail;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeSummary;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
+import com.morak.feature.challenge.domain.enums.ChallengeStatus;
+import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import java.time.LocalDate;
 import java.util.List;
@@ -56,7 +58,7 @@ class ReadChallengeServiceTest {
 
 	@Test
 	void allowsAnonymousToReadPublicChallengeButCannotApply() {
-		when(challenges.findById(10L)).thenReturn(Optional.of(challenge("PUBLIC", 10L)));
+		when(challenges.findById(10L)).thenReturn(Optional.of(challenge(ChallengeVisibility.PUBLIC, 10L)));
 
 		var result = service.get(10L, null);
 
@@ -66,7 +68,7 @@ class ReadChallengeServiceTest {
 
 	@Test
 	void allowsPrivateChallengeForApplicant() {
-		when(challenges.findById(10L)).thenReturn(Optional.of(challenge("PRIVATE", 20L)));
+		when(challenges.findById(10L)).thenReturn(Optional.of(challenge(ChallengeVisibility.PRIVATE, 20L)));
 		when(participations.findStatus(10L, 30L)).thenReturn(Optional.of("PENDING"));
 		when(coverImages.urls(List.of("challenges/test"))).thenReturn(Map.of("challenges/test", "https://storage.test/signed"));
 
@@ -80,7 +82,7 @@ class ReadChallengeServiceTest {
 
 	@Test
 	void rejectsPrivateChallengeForNonApplicant() {
-		when(challenges.findById(10L)).thenReturn(Optional.of(challenge("PRIVATE", 20L)));
+		when(challenges.findById(10L)).thenReturn(Optional.of(challenge(ChallengeVisibility.PRIVATE, 20L)));
 		when(participations.findStatus(10L, 30L)).thenReturn(Optional.empty());
 
 		BusinessException error = assertThrows(BusinessException.class, () -> service.get(10L, 30L));
@@ -89,8 +91,8 @@ class ReadChallengeServiceTest {
 		verifyNoInteractions(coverImages);
 	}
 
-	private ChallengeDetail challenge(String visibility, long ownerId) {
+	private ChallengeDetail challenge(ChallengeVisibility visibility, long ownerId) {
 		return new ChallengeDetail(10L, ownerId, "독서", "함께 읽어요", visibility, ChallengeCategory.READING, "목적", "매일 독서",
-				"인증 규칙", null, "RECRUITING", LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 7), 3, 1, 0, "challenges/test");
+				"인증 규칙", null, ChallengeStatus.RECRUITING, LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 7), 3, 1, 0, "challenges/test");
 	}
 }

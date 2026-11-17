@@ -34,8 +34,7 @@ public class CreateChallengeService {
 		for (int attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
 			String inviteCode = String.format(Locale.ROOT, "%06d", random.nextInt(1_000_000));
 			try {
-				long id = coverImageKey == null ? transaction.create(ownerId, command, inviteCode)
-						: transaction.create(ownerId, command, inviteCode, coverImageKey);
+				long id = transaction.create(ownerId, command, inviteCode, coverImageKey);
 				return new CreatedChallenge(id, inviteCode);
 			} catch (InviteCodeConflictException exception) {
 				// 다음 시도에서 새 코드를 발급한다.

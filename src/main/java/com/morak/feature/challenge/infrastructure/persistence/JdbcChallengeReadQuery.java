@@ -4,6 +4,8 @@ import com.morak.feature.challenge.application.query.ChallengeReadQuery;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeDetail;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeSummary;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
+import com.morak.feature.challenge.domain.enums.ChallengeStatus;
+import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -54,9 +56,10 @@ public class JdbcChallengeReadQuery implements ChallengeReadQuery {
 				.param("id", challengeId)
 				.query((rs, rowNum) -> new ChallengeDetail(
 					rs.getLong("id"), rs.getLong("owner_user_id"), rs.getString("title"), rs.getString("description"),
-					rs.getString("visibility"),
+					ChallengeVisibility.valueOf(rs.getString("visibility")),
 					ChallengeCategory.valueOf(rs.getString("category")), rs.getString("purpose"), rs.getString("common_mission"),
-					rs.getString("verification_rules"), rs.getString("expectations"), rs.getString("status"),
+					rs.getString("verification_rules"), rs.getString("expectations"),
+					ChallengeStatus.valueOf(rs.getString("status")),
 					rs.getObject("start_date", java.time.LocalDate.class), rs.getObject("end_date", java.time.LocalDate.class),
 					rs.getInt("capacity"), rs.getInt("current_count"), rs.getInt("point_amount"),
 					rs.getString("cover_image_key")))

@@ -262,7 +262,7 @@ class CreateChallengeTransactionIntegrationTest {
 
 	@Test
 	void createsRecruitingChallengeAndRegistersActiveHost() {
-		long id = transaction.create(1, command(0), "000001");
+		long id = transaction.create(1, command(0), "000001", null);
 
 		assertEquals("RECRUITING:1", jdbc.sql("""
 				SELECT status || ':' || current_count FROM morak.challenge WHERE id = :id
@@ -275,9 +275,9 @@ class CreateChallengeTransactionIntegrationTest {
 
 	@Test
 	void translatesDatabaseInviteCodeCollisionAndRollsBackTheSecondCreation() {
-		transaction.create(1, command(0), "000001");
+		transaction.create(1, command(0), "000001", null);
 
-		assertThrows(InviteCodeConflictException.class, () -> transaction.create(2, command(0), "000001"));
+		assertThrows(InviteCodeConflictException.class, () -> transaction.create(2, command(0), "000001", null));
 
 		assertEquals(1L, number("SELECT count(*) FROM morak.challenge"));
 		assertEquals(1L, number("SELECT count(*) FROM morak.participation"));
@@ -286,7 +286,7 @@ class CreateChallengeTransactionIntegrationTest {
 	@Test
 	void depositsHostPointsAndPersistsChallengeAmount() {
 		pointService.grant(1L, com.morak.feature.point.domain.entity.PointGrantReason.SIGNUP_GIFT, 5000, "test:signup:1");
-		long id = transaction.create(1, command(1000), "000001");
+		long id = transaction.create(1, command(1000), "000001", null);
 
 		assertEquals(1000L, jdbc.sql("SELECT point_amount FROM morak.challenge WHERE id = :id")
 				.param("id", id).query(Long.class).single());
@@ -303,7 +303,7 @@ class CreateChallengeTransactionIntegrationTest {
 	void rollsBackChallengeHostAndPointChangeWhenBalanceIsInsufficient() {
 		pointService.grant(1L, com.morak.feature.point.domain.entity.PointGrantReason.SIGNUP_GIFT, 500, "test:signup:2");
 
-		assertThrows(BusinessException.class, () -> transaction.create(1, command(1000), "000001"));
+		assertThrows(BusinessException.class, () -> transaction.create(1, command(1000), "000001", null));
 
 		assertEquals(0L, number("SELECT count(*) FROM morak.challenge"));
 		assertEquals(0L, number("SELECT count(*) FROM morak.participation"));
@@ -315,7 +315,7 @@ class CreateChallengeTransactionIntegrationTest {
 	void rollsBackPointDepositWhenAnOuterTransactionRollsBack() {
 		pointService.grant(1L, com.morak.feature.point.domain.entity.PointGrantReason.SIGNUP_GIFT, 5000, "test:signup:3");
 		new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-			transaction.create(1, command(1000), "000001");
+			transaction.create(1, command(1000), "000001", null);
 			status.setRollbackOnly();
 		});
 
@@ -328,7 +328,7 @@ class CreateChallengeTransactionIntegrationTest {
 	@Test
 	void rollsBackChallengeAndHostTogether() {
 		new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-			transaction.create(1, command(0), "000001");
+			transaction.create(1, command(0), "000001", null);
 			status.setRollbackOnly();
 		});
 
@@ -363,7 +363,7 @@ class CreateChallengeTransactionIntegrationTest {
 		when(participants.invalidatePendingWithoutPoints(1L)).thenReturn(Optional.empty());
 
 		BusinessException error = assertThrows(BusinessException.class,
-				() -> transaction.create(1, command(0), "100005"));
+				() -> transaction.create(1, command(0), "100005", null));
 
 		assertEquals(ChallengeErrorCode.PENDING_POINTS_NOT_SUPPORTED, error.getErrorCode());
 		assertEquals(3L, number("SELECT count(*) FROM morak.challenge WHERE owner_user_id = 1"));
@@ -372,10 +372,10 @@ class CreateChallengeTransactionIntegrationTest {
 
 	/** 개설한 세 방과 일반 참가자로 합류한 한 방을 함께 참여 한도에 포함시킨다. */
 	private long createWithFourActiveChallenges() {
-		long otherChallenge = transaction.create(2, command(0), "100000");
-		long joinedChallenge = transaction.create(2, command(0), "100004");
+		long otherChallenge = transaction.create(2, command(0), "100000", null);
+		long joinedChallenge = transaction.create(2, command(0), "100004", null);
 		for (int index = 1; index <= 3; index++) {
-			transaction.create(1, command(0), "10000" + index);
+			transaction.create(1, command(0), "10000" + index, null);
 		}
 		jdbc.sql("""
 				INSERT INTO morak.participation (challenge_id, user_id, role, status, applied_at, joined_at)
@@ -392,7 +392,7 @@ class CreateChallengeTransactionIntegrationTest {
 				throw new IllegalStateException("개설 요청 시작 대기 시간 초과");
 			}
 			try {
-				transaction.create(1, command(0), code);
+				transaction.create(1, command(0), code, null);
 				return true;
 			} catch (BusinessException exception) {
 				assertEquals(ChallengeErrorCode.PARTICIPATION_LIMIT, exception.getErrorCode());

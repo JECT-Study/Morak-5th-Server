@@ -12,6 +12,8 @@ import com.morak.feature.challenge.application.query.ChallengeReadQuery;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeDetail;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeSummary;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
+import com.morak.feature.challenge.domain.enums.ChallengeStatus;
+import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.policy.ParticipationLimitPolicy;
 import java.util.ArrayList;
@@ -42,7 +44,9 @@ public class ReadChallengeService {
 		}
 		List<ChallengeSummary> rows = challenges.findRecruitingPublic(query.category(), query.keyword(), query.cursor(), size + 1);
 		boolean hasNext = rows.size() > size;
-		if (hasNext) rows = new ArrayList<>(rows.subList(0, size));
+		if (hasNext) {
+			rows = new ArrayList<>(rows.subList(0, size));
+		}
 		Long nextCursor = hasNext ? rows.getLast().id() : null;
 		var urls = coverImages.urls(rows.stream().map(ChallengeSummary::coverImageKey).filter(Objects::nonNull).distinct().toList());
 		var items = rows.stream().map(row -> new ChallengeListItem(row.id(), row.title(), row.description(), row.category(),
@@ -55,21 +59,25 @@ public class ReadChallengeService {
 		ChallengeDetail challenge = challenges.findById(challengeId)
 				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
 		Optional<String> myStatus = userId == null ? Optional.empty() : participations.findStatus(challengeId, userId);
-		if ("PRIVATE".equals(challenge.visibility())
+		if (challenge.visibility() == ChallengeVisibility.PRIVATE
 				&& (userId == null || (userId != challenge.ownerUserId() && myStatus.isEmpty()))) {
 			throw new BusinessException(ChallengeErrorCode.PRIVATE_CHALLENGE_FORBIDDEN);
 		}
-		boolean canApply = userId != null
-				&& ("RECRUITING".equals(challenge.status()) || "START_HELD".equals(challenge.status()))
+		boolean canApply = canApply(challenge, userId, myStatus);
+		String key = challenge.coverImageKey();
+		String coverImageUrl = key == null ? null : coverImages.urls(List.of(key)).get(key);
+		return new ChallengeView(challenge.id(), challenge.title(), challenge.description(), challenge.visibility().name(), challenge.category(),
+				challenge.purpose(), challenge.commonMission(), challenge.verificationRules(), challenge.expectations(),
+				challenge.status().name(), challenge.startDate(), challenge.endDate(), challenge.capacity(), challenge.currentCount(),
+				challenge.pointAmount(), myStatus.orElse(null), canApply, coverImageUrl);
+	}
+
+	private boolean canApply(ChallengeDetail challenge, Long userId, Optional<String> myStatus) {
+		return userId != null
+				&& (challenge.status() == ChallengeStatus.RECRUITING || challenge.status() == ChallengeStatus.START_HELD)
 				&& challenge.currentCount() < challenge.capacity()
 				&& myStatus.isEmpty()
 				&& ParticipationLimitPolicy.canJoinMore(() -> participations.countOngoing(userId));
-		String key = challenge.coverImageKey();
-		String coverImageUrl = key == null ? null : coverImages.urls(List.of(key)).get(key);
-		return new ChallengeView(challenge.id(), challenge.title(), challenge.description(), challenge.visibility(), challenge.category(),
-				challenge.purpose(), challenge.commonMission(), challenge.verificationRules(), challenge.expectations(),
-				challenge.status(), challenge.startDate(), challenge.endDate(), challenge.capacity(), challenge.currentCount(),
-				challenge.pointAmount(), myStatus.orElse(null), canApply, coverImageUrl);
 	}
 
 	public List<CategoryItem> categories() {
