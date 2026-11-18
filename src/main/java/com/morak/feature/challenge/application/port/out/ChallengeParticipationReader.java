@@ -1,6 +1,8 @@
 package com.morak.feature.challenge.application.port.out;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface ChallengeParticipationReader {
 
@@ -9,4 +11,13 @@ public interface ChallengeParticipationReader {
 
 	/** 신청 이력이 있으면 현재 참가 상태를 반환한다. */
 	Optional<String> findStatus(long challengeId, long userId);
+
+	/** 내 참가 중 지정한 상태만 최근 신청 순으로 전부 반환한다. 홈 목록처럼 건수가 작은 경우에 쓴다. */
+	List<MyParticipationRow> findMine(long userId, Set<String> statuses);
+
+	/** 내 참가 중 지정한 상태만 participationId 내림차순 커서 페이지로 반환한다. */
+	List<MyParticipationRow> findMine(long userId, Set<String> statuses, Long cursor, int limit);
+
+	/** 내 챌린지 목록에 필요한 참가 정보. role, status는 위키 §5 enum 문자열 그대로다. */
+	record MyParticipationRow(long participationId, long challengeId, String role, String status) {}
 }

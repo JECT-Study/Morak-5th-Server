@@ -58,6 +58,12 @@ public interface ParticipationQuery {
 	List<MyParticipation> findMyParticipations(Long userId, Set<String> statuses);
 
 	/**
+	 * 내 참가 목록의 커서 페이지. 지정한 상태만 participationId 내림차순으로 반환한다. cursor가 있으면 그보다 작은 id만 본다.
+	 * 다음 페이지 판단은 호출하는 쪽이 limit을 한 건 더 크게 넘겨서 한다.
+	 */
+	List<MyParticipation> findMyParticipations(Long userId, Set<String> statuses, Long cursor, int limit);
+
+	/**
 	 * 동시 참여 한도(5개) 판단용 건수. 상태가 ACTIVE·EXPEL_NOTICED인 참가 중 챌린지가 RECRUITING·START_HELD·IN_PROGRESS인 것만
 	 * 센다. 승인 대기와 종료된 방은 제외한다. 위키 §4.3 구현 해석.
 	 */
