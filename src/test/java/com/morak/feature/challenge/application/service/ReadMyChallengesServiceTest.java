@@ -17,6 +17,9 @@ import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.challenge.application.dto.query.MyChallengeFilter;
 import com.morak.feature.challenge.application.dto.result.MyChallengeItem;
 import com.morak.feature.challenge.application.port.out.ChallengeCertificationReader;
+import com.morak.feature.challenge.application.port.out.ChallengeCertificationReader.CertificationStats;
+import com.morak.feature.challenge.application.port.out.ChallengeCertificationReader.TodayPhoto;
+import com.morak.feature.challenge.application.port.out.ChallengeCertificationReader.TodayTeam;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader.MyParticipationRow;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery;
@@ -24,6 +27,7 @@ import com.morak.feature.challenge.application.query.ChallengeReadQuery.Challeng
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -77,13 +81,40 @@ class ReadMyChallengesServiceTest {
 		MyChallengeItem item = service.list(1L, MyChallengeFilter.HOME, null, 20).items().getFirst();
 
 		assertNull(item.teamAchievementRate());
-		assertNull(item.todayCertifiedCount());
-		assertNull(item.todayTargetCount());
+		assertNull(item.todayTeamCertifications());
 		assertNull(item.myTodayStatus());
 		assertNull(item.pendingJudgeCount());
 		assertEquals("MEMBER", item.myRole());
 		assertEquals("ACTIVE", item.myStatus());
 		assertEquals("IN_PROGRESS", item.challengeStatus());
+	}
+
+	@Test
+	void homeCardCarriesVisibilityDescriptionAndTodayTeamPhotos() {
+		when(participations.findMine(1L, Set.of("ACTIVE"))).thenReturn(List.of(row(11, 101)));
+		when(challenges.findByIds(anyList())).thenReturn(List.of(new ChallengeDetail(101, 1, "매일 아침 6시 기상 인증",
+				"규칙적인 아침 루틴으로 건강한 하루 시작하기", ChallengeVisibility.PRIVATE, ChallengeCategory.LIFESTYLE, null, "미션",
+				"규칙", null, ChallengeStatus.IN_PROGRESS, LocalDate.of(2026, 11, 14), LocalDate.of(2026, 11, 27), 5, 4, 0,
+				null)));
+		when(certifications.findStats(anyCollection(), any())).thenReturn(Map.of(11L, new CertificationStats(
+				new BigDecimal("60.0"),
+				new TodayTeam(2, 4, List.of(new TodayPhoto(7L, "https://storage.test/a", Instant.parse("2026-11-17T21:02:00Z")))),
+				null, 0)));
+		when(coverImages.urls(anyList())).thenReturn(Map.of());
+
+		MyChallengeItem item = service.list(1L, MyChallengeFilter.HOME, null, 20).items().getFirst();
+
+		assertEquals("PRIVATE", item.visibility());
+		assertEquals("규칙적인 아침 루틴으로 건강한 하루 시작하기", item.description());
+		assertEquals(new BigDecimal("60.0"), item.teamAchievementRate());
+		assertEquals(2, item.todayTeamCertifications().certifiedCount());
+		assertEquals(4, item.todayTeamCertifications().targetCount());
+		var photo = item.todayTeamCertifications().photos().getFirst();
+		assertEquals(7L, photo.userId());
+		// UTC 21:02는 KST 다음 날 06:02다.
+		assertEquals(OffsetDateTime.parse("2026-11-18T06:02:00+09:00"), photo.submittedAt());
+		assertNull(item.myTodayStatus());
+		assertEquals(0, item.pendingJudgeCount());
 	}
 
 	@Test

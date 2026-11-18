@@ -4,10 +4,13 @@ import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.challenge.application.dto.query.MyChallengeFilter;
 import com.morak.feature.challenge.application.dto.result.MyChallengeItem;
+import com.morak.feature.challenge.application.dto.result.MyChallengeItem.Photo;
 import com.morak.feature.challenge.application.dto.result.MyChallengeItem.StartHeld;
+import com.morak.feature.challenge.application.dto.result.MyChallengeItem.TodayTeamCertifications;
 import com.morak.feature.challenge.application.dto.result.MyChallengePage;
 import com.morak.feature.challenge.application.port.out.ChallengeCertificationReader;
 import com.morak.feature.challenge.application.port.out.ChallengeCertificationReader.CertificationStats;
+import com.morak.feature.challenge.application.port.out.ChallengeCertificationReader.TodayTeam;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader.MyParticipationRow;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery;
@@ -112,15 +115,26 @@ public class ReadMyChallengesService {
 	private MyChallengeItem toItem(MyParticipationRow row, ChallengeDetail challenge, CertificationStats stats,
 			Map<String, String> urls, LocalDate today) {
 		String key = challenge.coverImageKey();
-		return new MyChallengeItem(row.participationId(), challenge.id(), challenge.title(), challenge.category(),
-				key == null ? null : urls.get(key), challenge.startDate(), challenge.endDate(), challenge.pointAmount(),
-				row.role(), row.status(), challenge.status().name(), challenge.currentCount(), challenge.capacity(),
+		return new MyChallengeItem(row.participationId(), challenge.id(), challenge.title(), challenge.description(),
+				challenge.category(), challenge.visibility().name(), key == null ? null : urls.get(key),
+				challenge.startDate(), challenge.endDate(), challenge.pointAmount(), row.role(), row.status(),
+				challenge.status().name(), challenge.currentCount(), challenge.capacity(),
 				progressDay(challenge, today), startHeld(challenge),
 				stats == null ? null : stats.teamAchievementRate(),
-				stats == null ? null : stats.todayCertifiedCount(),
-				stats == null ? null : stats.todayTargetCount(),
+				stats == null ? null : todayTeam(stats.todayTeam()),
 				stats == null ? null : stats.myTodayStatus(),
 				stats == null ? null : stats.pendingJudgeCount());
+	}
+
+	static TodayTeamCertifications todayTeam(TodayTeam team) {
+		if (team == null) {
+			return null;
+		}
+		List<Photo> photos = team.photos().stream()
+				.map(photo -> new Photo(photo.userId(), photo.thumbnailUrl(),
+						photo.submittedAt().atZone(KST).toOffsetDateTime()))
+				.toList();
+		return new TodayTeamCertifications(team.certifiedCount(), team.targetCount(), photos);
 	}
 
 	/** 진행 일차(시작일 = 1일차). 진행 중·정산 대기에만 값이 있고 1일차~마지막 날 사이로 제한한다. */
