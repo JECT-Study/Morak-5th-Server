@@ -105,4 +105,80 @@ class ParticipationTest {
 
 		assertThrows(BusinessException.class, application::invalidate);
 	}
+
+	private static Participation activeMember() {
+		Participation member = Participation.apply(10L, 2L, "열심히 하겠습니다", NOW);
+		member.approve(NOW);
+		return member;
+	}
+
+	@Test
+	void confirmInvalidationRecordsTimeOnceAndIsIdempotent() {
+		Participation application = Participation.apply(10L, 2L, "지원", NOW);
+		application.invalidate();
+
+		application.confirmInvalidation(NOW);
+		application.confirmInvalidation(NOW.plusSeconds(60));
+
+		assertEquals(java.time.LocalDateTime.of(2026, 11, 13, 1, 0), application.getInvalidConfirmedAt());
+	}
+
+	@Test
+	void confirmInvalidationRejectsApplicationsThatAreNotInvalidated() {
+		Participation pending = Participation.apply(10L, 2L, "지원", NOW);
+		Participation rejected = Participation.apply(10L, 3L, "지원", NOW);
+		rejected.reject();
+
+		assertEquals(ParticipationErrorCode.INVALID_STATUS_TRANSITION,
+				assertThrows(BusinessException.class, () -> pending.confirmInvalidation(NOW)).getErrorCode());
+		assertEquals(ParticipationErrorCode.INVALID_STATUS_TRANSITION,
+				assertThrows(BusinessException.class, () -> rejected.confirmInvalidation(NOW)).getErrorCode());
+	}
+
+	@Test
+	void activeMemberCanBecomeDeputyThenHost() {
+		Participation member = activeMember();
+
+		member.assignDeputy();
+		assertEquals(ParticipationRole.DEPUTY, member.getRole());
+
+		member.succeedAsHost();
+		assertEquals(ParticipationRole.HOST, member.getRole());
+	}
+
+	@Test
+	void deputyCannotBeAssignedToPendingMemberHostOrDeputy() {
+		Participation pending = Participation.apply(10L, 2L, "지원", NOW);
+		Participation host = Participation.host(10L, 1L, NOW);
+		Participation deputy = activeMember();
+		deputy.assignDeputy();
+
+		assertThrows(BusinessException.class, pending::assignDeputy);
+		assertThrows(BusinessException.class, host::assignDeputy);
+		assertThrows(BusinessException.class, deputy::assignDeputy);
+	}
+
+	@Test
+	void onlyActiveDeputyCanSucceedAsHost() {
+		Participation member = activeMember();
+		Participation host = Participation.host(10L, 1L, NOW);
+
+		assertThrows(BusinessException.class, member::succeedAsHost);
+		assertThrows(BusinessException.class, host::succeedAsHost);
+	}
+
+	@Test
+	void hostAndDeputyCanStepDownToMemberButMemberCannot() {
+		Participation host = Participation.host(10L, 1L, NOW);
+		Participation deputy = activeMember();
+		deputy.assignDeputy();
+		Participation member = activeMember();
+
+		host.stepDown();
+		deputy.stepDown();
+
+		assertEquals(ParticipationRole.MEMBER, host.getRole());
+		assertEquals(ParticipationRole.MEMBER, deputy.getRole());
+		assertThrows(BusinessException.class, member::stepDown);
+	}
 }

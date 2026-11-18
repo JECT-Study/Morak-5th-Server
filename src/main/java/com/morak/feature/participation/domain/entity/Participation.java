@@ -55,6 +55,10 @@ public class Participation {
 
 	private LocalDateTime joinedAt;
 
+	/** 방장이 무효(INVALIDATED) 신청을 확인한 시각(UTC). 확인 전에는 null이며, 확인하면 승인 대기 목록에서 사라진다. */
+	@Column(name = "invalid_confirmed_at")
+	private LocalDateTime invalidConfirmedAt;
+
 	protected Participation() {}
 
 	private Participation(long challengeId, long userId, ParticipationRole role, ParticipationStatus status,
@@ -141,6 +145,48 @@ public class Participation {
 		return pointStatus != ParticipationPointStatus.NONE;
 	}
 
+	/**
+	 * 무효가 된 신청을 방장이 확인한다. 확인하면 승인 대기 목록에서 사라진다.
+	 * 이미 확인한 신청이면 확인 시각을 바꾸지 않고 그대로 둔다 (같은 요청을 여러 번 보내도 결과가 같다).
+	 */
+	public void confirmInvalidation(Instant now) {
+		if (status != ParticipationStatus.INVALIDATED) {
+			log.warn("무효 확인 거절: participationId={}, status={}", id, status);
+			throw new BusinessException(ParticipationErrorCode.INVALID_STATUS_TRANSITION);
+		}
+		if (invalidConfirmedAt == null) {
+			invalidConfirmedAt = toUtc(now);
+		}
+	}
+
+	/** 개설 후 처음 합류한 참여자를 부방장으로 지정한다. 참여 중(ACTIVE)인 일반 참가자만 가능하다. */
+	public void assignDeputy() {
+		requireActiveRole(ParticipationRole.MEMBER, ParticipationRole.DEPUTY);
+		role = ParticipationRole.DEPUTY;
+	}
+
+	/** 방장이 떠나 부방장이 방장을 이어받는다. 참여 중(ACTIVE)인 부방장만 가능하다. */
+	public void succeedAsHost() {
+		requireActiveRole(ParticipationRole.DEPUTY, ParticipationRole.HOST);
+		role = ParticipationRole.HOST;
+	}
+
+	/** 방장·부방장이 떠나면서 일반 참가자로 내려간다. 일반 참가자는 내릴 역할이 없어 예외다. */
+	public void stepDown() {
+		if (role == ParticipationRole.MEMBER) {
+			log.warn("역할 전이 거절: participationId={}, from={}, to={}", id, role, ParticipationRole.MEMBER);
+			throw new BusinessException(ParticipationErrorCode.INVALID_STATUS_TRANSITION);
+		}
+		role = ParticipationRole.MEMBER;
+	}
+
+	private void requireActiveRole(ParticipationRole expected, ParticipationRole to) {
+		if (status != ParticipationStatus.ACTIVE || role != expected) {
+			log.warn("역할 전이 거절: participationId={}, status={}, from={}, to={}", id, status, role, to);
+			throw new BusinessException(ParticipationErrorCode.INVALID_STATUS_TRANSITION);
+		}
+	}
+
 	public Long getId() {
 		return id;
 	}
@@ -163,6 +209,14 @@ public class Participation {
 
 	public ParticipationStatus getStatus() {
 		return status;
+	}
+
+	public LocalDateTime getJoinedAt() {
+		return joinedAt;
+	}
+
+	public LocalDateTime getInvalidConfirmedAt() {
+		return invalidConfirmedAt;
 	}
 
 	private static LocalDateTime toUtc(Instant instant) {

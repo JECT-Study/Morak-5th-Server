@@ -37,4 +37,14 @@ class NotificationApplicationNotifier implements ApplicationNotifier {
 				challengeId,
 				"PARTICIPATION_REJECTED:" + participationId));
 	}
+
+	@Override
+	public void deputyAssigned(long deputyUserId, long challengeId, long participationId, String challengeTitle) {
+		notifications.notify(new NotifyCommand(
+				deputyUserId,
+				new NotificationContent.DeputyAssigned(challengeTitle),
+				TARGET_CHALLENGE,
+				challengeId,
+				"DEPUTY_ASSIGNED:" + participationId));
+	}
 }

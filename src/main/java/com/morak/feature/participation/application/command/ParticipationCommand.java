@@ -20,6 +20,36 @@ public interface ParticipationCommand {
 	 */
 	Optional<List<InvalidatedApplication>> invalidatePendingWithoutPoints(long userId);
 
+	/**
+	 * 방장 또는 부방장이 챌린지를 떠날 때 역할을 넘긴다 (위키 §4.3 방장·부방장 승계).
+	 *
+	 * <ul>
+	 *   <li>방장이 떠나면 부방장이 방장이 되고, 남은 참여자 중 합류 순서가 가장 빠른 사람이 새 부방장이 된다.
+	 *       챌린지의 방장(owner)도 함께 바꾼다.
+	 *   <li>부방장이 떠나면 남은 참여자 중 합류 순서가 가장 빠른 사람이 새 부방장이 된다.
+	 *   <li>떠나는 사람은 일반 참가자(MEMBER)로 내린다. 퇴장 같은 상태 변경은 호출한 쪽이 한다.
+	 *   <li>일반 참가자가 떠나면 아무것도 바꾸지 않는다.
+	 * </ul>
+	 *
+	 * 부방장이 없는 상태에서 방장이 떠나는 경우의 대체 절차는 위키 O-9(미정)라서 아무것도 바꾸지 않고
+	 * {@link RoleHandOver#successorMissing()}으로 알린다.
+	 */
+	RoleHandOver handOverRoles(long challengeId, long departingParticipationId);
+
 	/** 무효가 된 신청. {@code hostUserId}는 신청한 챌린지의 방장으로, 무효 알림을 받는다. */
 	record InvalidatedApplication(long participationId, long challengeId, long hostUserId) {}
+
+	/**
+	 * 승계 결과. 바뀌지 않은 역할은 null이다.
+	 *
+	 * @param newHostUserId 새 방장의 사용자 번호
+	 * @param newDeputyUserId 새 부방장의 사용자 번호
+	 * @param successorMissing 방장이 떠나는데 부방장이 없어 승계하지 못했다 (위키 O-9)
+	 */
+	record RoleHandOver(Long newHostUserId, Long newDeputyUserId, boolean successorMissing) {
+
+		public static RoleHandOver unchanged() {
+			return new RoleHandOver(null, null, false);
+		}
+	}
 }
