@@ -46,7 +46,10 @@ public interface ParticipationQuery {
 
 	// ---- 방장 신청 관리 ----
 
-	/** 승인 대기(PENDING) 신청 목록. 오래된 신청부터. */
+	/**
+	 * 방장의 승인 대기 목록. 승인 대기(PENDING) 신청과, 방장이 아직 확인하지 않은 무효(INVALIDATED) 신청을 함께 반환한다
+	 * (위키 §4.3: 확인하면 목록에서 사라진다). 오래된 신청부터.
+	 */
 	List<Application> findPendingApplications(Long challengeId);
 
 	// ---- 내 참가 상태 ----
@@ -84,8 +87,11 @@ public interface ParticipationQuery {
 	/** 참여자 목록 한 행. */
 	record ParticipantSummary(Long participationId, Long userId, String role, String status, Instant joinedAt) {}
 
-	/** 방장이 보는 승인 대기 신청. */
-	record Application(Long participationId, Long userId, String applyMessage, Instant appliedAt) {}
+	/**
+	 * 방장이 보는 신청. invalidated가 true면 동시 참여 한도 때문에 무효가 된 신청이라 승인할 수 없고, 방장이 "확인"을
+	 * 눌러야 목록에서 사라진다.
+	 */
+	record Application(Long participationId, Long userId, String applyMessage, Instant appliedAt, boolean invalidated) {}
 
 	/** 로그인한 사용자 본인의 참가 정보. 상세 화면의 버튼 상태와 내 챌린지 목록에 쓴다. */
 	record MyParticipation(

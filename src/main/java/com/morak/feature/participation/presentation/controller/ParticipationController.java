@@ -58,6 +58,16 @@ public class ParticipationController {
 		return ApiResponse.successEmpty();
 	}
 
+	@PostMapping("/{participationId}/confirm-invalid")
+	@Operation(summary = "무효 신청 확인",
+			description = "동시 참여 한도 때문에 무효가 된 신청을 방장이 확인합니다(무효 알림의 \"확인\" 버튼). "
+					+ "확인하면 승인 대기 목록에서 사라집니다. 이미 확인한 신청이면 그대로 성공하고, 무효가 아닌 신청은 409입니다.")
+	public ApiResponse<Map<String, Object>> confirmInvalid(
+			@AuthenticationPrincipal LoginUser user, @PathVariable long challengeId, @PathVariable long participationId) {
+		decideService.confirmInvalidation(user.userId().value(), challengeId, participationId);
+		return ApiResponse.successEmpty();
+	}
+
 	@PostMapping("/{participationId}/reject")
 	@Operation(summary = "참가 신청 거절",
 			description = "방장이 승인 대기 신청을 거절합니다. 걸어 둔 포인트는 전액 돌려주고, 신청자에게 거절 알림이 갑니다. "

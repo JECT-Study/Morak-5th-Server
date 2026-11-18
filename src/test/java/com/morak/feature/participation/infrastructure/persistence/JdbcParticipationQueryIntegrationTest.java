@@ -1,6 +1,7 @@
 package com.morak.feature.participation.infrastructure.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -144,7 +145,8 @@ class JdbcParticipationQueryIntegrationTest {
 		long later = pending(challenge, 3L, "나중에 신청", T0.plusDays(2));
 		long earlier = pending(challenge, 2L, "먼저 신청", T0.plusDays(1));
 		participation(challenge, 4L, "MEMBER", "REJECTED", null);
-		participation(challenge, 5L, "MEMBER", "INVALIDATED", null);
+		long confirmed = participation(challenge, 5L, "MEMBER", "INVALIDATED", null);
+		confirmInvalidation(confirmed);
 
 		List<Application> applications = query.findPendingApplications(challenge);
 
@@ -152,6 +154,24 @@ class JdbcParticipationQueryIntegrationTest {
 		assertEquals(2L, applications.get(0).userId());
 		assertEquals("먼저 신청", applications.get(0).applyMessage());
 		assertEquals(Instant.parse("2026-11-02T10:00:00Z"), applications.get(0).appliedAt());
+		assertFalse(applications.get(0).invalidated());
+	}
+
+	@Test
+	void findPendingApplicationsIncludesInvalidatedUntilHostConfirms() {
+		long challenge = challenge("RECRUITING");
+		long pendingId = pending(challenge, 2L, "대기", T0.plusDays(1));
+		long unconfirmed = participation(challenge, 3L, "MEMBER", "INVALIDATED", null);
+		long confirmed = participation(challenge, 4L, "MEMBER", "INVALIDATED", null);
+		confirmInvalidation(confirmed);
+
+		List<Application> applications = query.findPendingApplications(challenge);
+
+		// 신청 시각(applied_at)순이라 먼저 신청한 무효 신청이 앞에 온다.
+		assertEquals(List.of(unconfirmed, pendingId), applications.stream().map(Application::participationId).toList());
+		Application invalidated = applications.stream().filter(a -> a.participationId() == unconfirmed).findFirst().orElseThrow();
+		assertTrue(invalidated.invalidated());
+		assertFalse(applications.stream().anyMatch(a -> a.participationId() == confirmed));
 	}
 
 	@Test
@@ -286,6 +306,13 @@ class JdbcParticipationQueryIntegrationTest {
 				.param("joinedAt", joinedAt)
 				.query(Long.class)
 				.single();
+	}
+
+	private void confirmInvalidation(long participationId) {
+		jdbc.sql("UPDATE morak.participation SET invalid_confirmed_at = :at WHERE id = :id")
+				.param("at", T0.plusDays(3))
+				.param("id", participationId)
+				.update();
 	}
 
 	private long pending(long challengeId, long userId, String applyMessage, LocalDateTime appliedAt) {

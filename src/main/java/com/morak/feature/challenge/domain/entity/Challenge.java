@@ -94,6 +94,11 @@ public class Challenge extends BaseEntity {
 		return status == ChallengeStatus.RECRUITING || status == ChallengeStatus.START_HELD;
 	}
 
+	/** 방장이 바뀐다(방장·부방장 승계). 참가자의 역할 변경은 참가 도메인이 한다. */
+	public void changeOwner(long newOwnerUserId) {
+		this.ownerUserId = newOwnerUserId;
+	}
+
 	/** 승인으로 참여 인원이 늘어난다. 정원 확인은 호출한 쪽이 먼저 하므로, 여기서는 불변식만 지킨다. */
 	public void acceptMember() {
 		if (currentCount >= capacity) {

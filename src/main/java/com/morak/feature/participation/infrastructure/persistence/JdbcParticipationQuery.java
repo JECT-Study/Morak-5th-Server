@@ -144,8 +144,9 @@ public class JdbcParticipationQuery implements ParticipationQuery {
 	@Override
 	public List<Application> findPendingApplications(Long challengeId) {
 		return jdbc.sql("""
-				SELECT id, user_id, apply_message, applied_at FROM morak.participation
-				WHERE challenge_id = :challengeId AND status = 'PENDING'
+				SELECT id, user_id, apply_message, applied_at, status FROM morak.participation
+				WHERE challenge_id = :challengeId
+				AND (status = 'PENDING' OR (status = 'INVALIDATED' AND invalid_confirmed_at IS NULL))
 				ORDER BY applied_at, id
 				""")
 				.param("challengeId", challengeId)
@@ -153,7 +154,8 @@ public class JdbcParticipationQuery implements ParticipationQuery {
 						rs.getLong("id"),
 						rs.getLong("user_id"),
 						rs.getString("apply_message"),
-						toInstant(rs, "applied_at")))
+						toInstant(rs, "applied_at"),
+						"INVALIDATED".equals(rs.getString("status"))))
 				.list();
 	}
 

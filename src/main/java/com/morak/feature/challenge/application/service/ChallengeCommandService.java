@@ -39,6 +39,14 @@ class ChallengeCommandService implements ChallengeCommand {
 		challenge.acceptMember();
 	}
 
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void changeOwner(long challengeId, long newOwnerUserId) {
+		Challenge challenge = challenges.findByIdForUpdate(challengeId)
+				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
+		challenge.changeOwner(newOwnerUserId);
+	}
+
 	private static ChallengeForApplication toInfo(Challenge challenge) {
 		return new ChallengeForApplication(
 				challenge.getId(),
