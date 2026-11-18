@@ -2,6 +2,7 @@ package com.morak.feature.notification.application.service;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.notification.application.dto.NotificationContent;
+import com.morak.feature.notification.application.dto.NotificationSavedEvent;
 import com.morak.feature.notification.application.dto.NotifyCommand;
 import com.morak.feature.notification.domain.entity.Notification;
 import com.morak.feature.notification.domain.exception.NotificationErrorCode;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,10 +27,13 @@ public class NotificationService {
 
 	private final NotificationRepository notificationRepository;
 	private final Clock clock;
+	private final ApplicationEventPublisher events;
 
-	public NotificationService(NotificationRepository notificationRepository, Clock clock) {
+	public NotificationService(
+			NotificationRepository notificationRepository, Clock clock, ApplicationEventPublisher events) {
 		this.notificationRepository = notificationRepository;
 		this.clock = clock;
+		this.events = events;
 	}
 
 	/**
@@ -57,7 +62,16 @@ public class NotificationService {
 				command.dedupKey(),
 				now);
 		boolean created = notificationRepository.saveIfAbsent(notification);
-		if (!created) {
+		if (created) {
+			// 푸시는 이 트랜잭션이 커밋된 뒤에만 나간다 (PushDispatchListener).
+			events.publishEvent(new NotificationSavedEvent(
+					content.type(),
+					command.recipientUserId(),
+					title,
+					body,
+					command.targetType(),
+					command.targetId()));
+		} else {
 			log.debug(
 					"알림 중복으로 건너뜀 type={} recipientUserId={} dedupKey={}",
 					content.type(),
