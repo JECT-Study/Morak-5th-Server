@@ -52,6 +52,14 @@ public interface ParticipationQuery {
 	 */
 	List<Application> findPendingApplications(Long challengeId);
 
+	/**
+	 * 방장이 처리한 신청 목록. 상태는 ACTIVE(승인) 또는 REJECTED(거절)이고, 방장 본인의 참가 행은 제외한다. 오래된 신청부터.
+	 */
+	List<Application> findDecidedApplications(Long challengeId, String status);
+
+	/** userId -> 종료된 참가 기록(완주·중도 실패 횟수). 기록이 없는 사용자는 결과에 없다. 위키 §4.1. */
+	Map<Long, ParticipationRecord> findRecordsByUserIds(Collection<Long> userIds);
+
 	// ---- 내 참가 상태 ----
 
 	/** 내가 이 챌린지에 낸 신청·참여 정보. 상태와 무관하게 반환한다(재지원 불가 판단에 쓴다). 없으면 empty. */
@@ -92,6 +100,14 @@ public interface ParticipationQuery {
 	 * 눌러야 목록에서 사라진다.
 	 */
 	record Application(Long participationId, Long userId, String applyMessage, Instant appliedAt, boolean invalidated) {}
+
+	/**
+	 * 사용자의 누적 참가 기록.
+	 *
+	 * @param completedCount 퇴장 없이 예정 기간을 끝까지 참여한 챌린지 수(COMPLETED). 조기 종료(EARLY_ENDED)는 세지 않는다
+	 * @param expelledCount 개인 실패 누적으로 퇴장한 챌린지 수(EXPELLED). 중도 실패 횟수다
+	 */
+	record ParticipationRecord(int completedCount, int expelledCount) {}
 
 	/** 로그인한 사용자 본인의 참가 정보. 상세 화면의 버튼 상태와 내 챌린지 목록에 쓴다. */
 	record MyParticipation(
