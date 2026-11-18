@@ -184,6 +184,25 @@ public class JdbcParticipationQuery implements ParticipationQuery {
 	}
 
 	@Override
+	public List<MyParticipation> findMyParticipations(Long userId, Set<String> statuses, Long cursor, int limit) {
+		if (statuses.isEmpty() || limit < 1) {
+			return List.of();
+		}
+		var query = jdbc.sql("""
+				SELECT %s FROM morak.participation
+				WHERE user_id = :userId AND status IN (:statuses)%s
+				ORDER BY id DESC LIMIT :limit
+				""".formatted(MY_PARTICIPATION_COLUMNS, cursor == null ? "" : " AND id < :cursor"))
+				.param("userId", userId)
+				.param("statuses", statuses)
+				.param("limit", limit);
+		if (cursor != null) {
+			query.param("cursor", cursor);
+		}
+		return query.query((rs, rowNum) -> toMyParticipation(rs)).list();
+	}
+
+	@Override
 	public int countOngoing(Long userId) {
 		// 챌린지 상태는 challenge 도메인 소유라 읽기 전용 조인만 한다. 한도 판단이 한 쿼리로 일관되게 끝나야 해서 조인을 쓴다.
 		return jdbc.sql("""

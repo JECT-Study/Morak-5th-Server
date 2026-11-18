@@ -195,6 +195,23 @@ class JdbcParticipationQueryIntegrationTest {
 	}
 
 	@Test
+	void findMyParticipationsPageReturnsNewestIdFirstAfterCursor() {
+		long first = participation(challenge("ENDED"), 1L, "MEMBER", "COMPLETED", T0);
+		long second = participation(challenge("IN_PROGRESS"), 1L, "MEMBER", "EXPELLED", T0);
+		long third = participation(challenge("ENDED"), 1L, "MEMBER", "EARLY_ENDED", T0);
+		participation(challenge("IN_PROGRESS"), 1L, "MEMBER", "ACTIVE", T0);
+		participation(challenge("ENDED"), 2L, "MEMBER", "COMPLETED", T0);
+		Set<String> archived = Set.of("COMPLETED", "EXPELLED", "EARLY_ENDED");
+
+		List<MyParticipation> firstPage = query.findMyParticipations(1L, archived, null, 2);
+		List<MyParticipation> nextPage = query.findMyParticipations(1L, archived, second, 2);
+
+		assertEquals(List.of(third, second), firstPage.stream().map(MyParticipation::participationId).toList());
+		assertEquals(List.of(first), nextPage.stream().map(MyParticipation::participationId).toList());
+		assertTrue(query.findMyParticipations(1L, Set.of(), null, 2).isEmpty());
+	}
+
+	@Test
 	void countOngoingCountsOnlyJoinedParticipationsInLiveChallenges() {
 		long recruiting = challenge("RECRUITING");
 		long held = challenge("START_HELD");
