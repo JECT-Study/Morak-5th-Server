@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * 내 챌린지 목록 한 행. 홈 카드 한 장을 이 값만으로 그릴 수 있게 한다.
  *
- * <p>TODO(D-22): 필드명은 프론트와 확정 전 제안값이다. 인증 관련 필드(teamAchievementRate ~ pendingJudgeCount)는 인증 집계 연동 전까지
+ * <p>TODO(D-23): 필드명은 프론트와 확정 전 제안값이다. 인증 관련 필드(teamAchievementRate ~ pendingJudgeCount)는 인증 집계 연동 전까지
  * null이다.
  *
  * @param visibility PUBLIC 또는 PRIVATE

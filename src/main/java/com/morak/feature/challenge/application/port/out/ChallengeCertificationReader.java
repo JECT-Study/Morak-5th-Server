@@ -22,7 +22,7 @@ public interface ChallengeCertificationReader {
 	/**
 	 * 참가 한 건의 인증 집계.
 	 *
-	 * <p>TODO(D-22): 필드 구성은 프론트와 확정 전 제안값이다. 팀 달성률은 위키 §4.5 FRD 식 (대상 − 실패) ÷ 대상이고, 대상은 어제(KST)까지의
+	 * <p>TODO(D-23): 필드 구성은 프론트와 확정 전 제안값이다. 팀 달성률은 위키 §4.5 FRD 식 (대상 − 실패) ÷ 대상이고, 대상은 어제(KST)까지의
 	 * 인증 의무 횟수로 센다.
 	 *
 	 * @param teamAchievementRate 팀 달성률(0~100, 소수 첫째 자리). 집계 대상이 없으면 null
@@ -36,7 +36,7 @@ public interface ChallengeCertificationReader {
 	/**
 	 * 오늘 팀원 인증 현황(홈 카드 "오늘 인증한 팀원").
 	 *
-	 * <p>TODO(D-22): photos에는 승인(APPROVED, AUTO_APPROVED)된 인증만 넣는다(위키 §4.4 "피드에는 승인된 사진만"). 판정 전 사진 노출은 PM 확인 전이다.
+	 * <p>TODO(D-23): photos에는 승인(APPROVED, AUTO_APPROVED)된 인증만 넣는다(위키 §4.4 "피드에는 승인된 사진만"). 판정 전 사진 노출은 PM 확인 전이다.
 	 *
 	 * @param certifiedCount 오늘 인증을 제출한 팀원 수
 	 * @param targetCount 오늘 인증 의무가 있는 팀원 수

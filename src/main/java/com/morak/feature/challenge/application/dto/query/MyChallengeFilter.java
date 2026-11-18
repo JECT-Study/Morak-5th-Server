@@ -3,7 +3,7 @@ package com.morak.feature.challenge.application.dto.query;
 /**
  * 내 챌린지 목록의 구분.
  *
- * <p>TODO(D-22): 상태 분류는 PM·프론트 확정 전 제안값이다.
+ * <p>TODO(D-23): 상태 분류는 PM·프론트 확정 전 제안값이다.
  */
 public enum MyChallengeFilter {
 

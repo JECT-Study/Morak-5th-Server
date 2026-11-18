@@ -8,6 +8,7 @@ import com.morak.feature.notification.domain.repository.PushTokenRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +48,12 @@ public class PushTokenService {
 			throw new BusinessException(NotificationErrorCode.INVALID_PUSH_TOKEN, "userId=" + userId + " blank or too long");
 		}
 		pushTokenRepository.delete(userId, token);
+	}
+
+	/** 푸시 서비스가 더 이상 쓸 수 없다고 알려 준 토큰을 주인과 상관없이 지운다. 지운 개수를 돌려준다. */
+	@Transactional
+	public int removeUnusable(Collection<String> tokens) {
+		return tokens.isEmpty() ? 0 : pushTokenRepository.deleteByTokens(tokens);
 	}
 
 	private static void validateExpoToken(Long userId, String token) {

@@ -31,7 +31,7 @@ public class MyChallengeController {
 		this.service = service;
 	}
 
-	// TODO(D-22): 쿼리 이름과 값(status=HOME|ARCHIVE)은 프론트와 확정 전 제안값이다.
+	// TODO(D-23): 쿼리 이름과 값(status=HOME|ARCHIVE)은 프론트와 확정 전 제안값이다.
 	@GetMapping("/participations")
 	@Operation(summary = "내 챌린지 목록",
 			description = "status=HOME(기본)은 참여 중인 챌린지 전체, ARCHIVE는 퇴장·완주·조기 종료·폐기된 챌린지를 커서로 기본 20개, 최대 100개까지"

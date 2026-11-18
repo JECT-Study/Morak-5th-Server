@@ -40,7 +40,7 @@ public class ReadMyChallengesService {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 	private static final int MAX_PAGE_SIZE = 100;
 
-	// TODO(D-22): 홈·보관함 상태 분류는 PM·프론트 확정 전 제안값이다.
+	// TODO(D-23): 홈·보관함 상태 분류는 PM·프론트 확정 전 제안값이다.
 	private static final Set<String> HOME_PARTICIPATION_STATUSES = Set.of("ACTIVE");
 	private static final Set<ChallengeStatus> HOME_CHALLENGE_STATUSES = EnumSet.of(
 			ChallengeStatus.RECRUITING, ChallengeStatus.START_HELD, ChallengeStatus.IN_PROGRESS, ChallengeStatus.FINALIZING);

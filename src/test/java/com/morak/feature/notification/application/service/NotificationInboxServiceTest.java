@@ -26,7 +26,7 @@ class NotificationInboxServiceTest {
 	private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-17T03:00:00Z"), ZoneOffset.UTC);
 
 	private final InMemoryNotificationRepository repository = new InMemoryNotificationRepository();
-	private final NotificationService writer = new NotificationService(repository, CLOCK);
+	private final NotificationService writer = new NotificationService(repository, CLOCK, event -> {});
 	private final NotificationInboxService inbox = new NotificationInboxService(repository, CLOCK);
 
 	private void add(Long recipient, int count) {

@@ -10,6 +10,7 @@ import com.morak.common.exception.BusinessException;
 import com.morak.feature.notification.application.dto.NotificationContent;
 import com.morak.feature.notification.application.dto.NotificationContent.ParticipationApproved;
 import com.morak.feature.notification.application.dto.NotificationContent.ParticipationRejected;
+import com.morak.feature.notification.application.dto.NotificationSavedEvent;
 import com.morak.feature.notification.application.dto.NotifyCommand;
 import com.morak.feature.notification.domain.entity.Notification;
 import com.morak.feature.notification.domain.entity.NotificationType;
@@ -19,6 +20,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class NotificationServiceTest {
@@ -26,8 +29,9 @@ class NotificationServiceTest {
 	private static final String TITLE = "매일 아침 러닝";
 
 	private final InMemoryNotificationRepository repository = new InMemoryNotificationRepository();
+	private final List<Object> events = new ArrayList<>();
 	private final NotificationService service = new NotificationService(
-			repository, Clock.fixed(Instant.parse("2026-11-17T03:00:00.123456789Z"), ZoneOffset.UTC));
+			repository, Clock.fixed(Instant.parse("2026-11-17T03:00:00.123456789Z"), ZoneOffset.UTC), events::add);
 
 	@Test
 	void savesNotificationWithAssembledMessageAndTarget() {
@@ -102,5 +106,34 @@ class NotificationServiceTest {
 
 		assertEquals(NotificationErrorCode.INVALID_COMMAND, e.getErrorCode());
 		assertTrue(repository.saved.isEmpty());
+	}
+
+	@Test
+	void publishesSavedEventWithMessageAndTargetOnlyWhenCreated() {
+		NotifyCommand command = new NotifyCommand(
+				10L, new ParticipationApproved(TITLE), "CHALLENGE", 5L, "PARTICIPATION_APPROVED:7");
+
+		service.notify(command);
+		service.notify(command);
+
+		assertEquals(1, events.size());
+		assertEquals(
+				new NotificationSavedEvent(
+						NotificationType.PARTICIPATION_APPROVED,
+						10L,
+						"참여 확정",
+						"매일 아침 러닝 참여가 확정됐어요",
+						"CHALLENGE",
+						5L),
+				events.get(0));
+	}
+
+	@Test
+	void publishesNoEventWhenMessageIsRejected() {
+		NotificationContent tooLong = new ParticipationApproved("가".repeat(Notification.MAX_BODY_LENGTH));
+
+		assertThrows(BusinessException.class, () -> service.notify(new NotifyCommand(10L, tooLong, null, null, null)));
+
+		assertTrue(events.isEmpty());
 	}
 }
