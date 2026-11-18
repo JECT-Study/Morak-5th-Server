@@ -7,11 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.notification.application.dto.NotificationContent.ApplicationInvalidated;
+import com.morak.feature.notification.application.dto.NotificationContent.CertificationRejected;
 import com.morak.feature.notification.application.dto.NotificationContent.ChallengeAutoDiscarded;
 import com.morak.feature.notification.application.dto.NotificationContent.ChallengeDiscarded;
 import com.morak.feature.notification.application.dto.NotificationContent.DeputyAssigned;
-import com.morak.feature.notification.application.dto.NotificationContent.EarlyEndNoticed;
-import com.morak.feature.notification.application.dto.NotificationContent.ExpelNoticed;
+import com.morak.feature.notification.application.dto.NotificationContent.EarlyEnded;
+import com.morak.feature.notification.application.dto.NotificationContent.Expelled;
 import com.morak.feature.notification.application.dto.NotificationContent.JudgeOverdueWarning;
 import com.morak.feature.notification.application.dto.NotificationContent.ParticipationApproved;
 import com.morak.feature.notification.application.dto.NotificationContent.ParticipationRejected;
@@ -42,8 +43,9 @@ class NotificationContentTest {
 				new ChallengeAutoDiscarded(TITLE, 1_000L),
 				new DeputyAssigned(TITLE),
 				new JudgeOverdueWarning(TITLE, 2),
-				new ExpelNoticed(TITLE, 3, DAY, 1_000L),
-				new EarlyEndNoticed(TITLE, DAY, 1_000L));
+				new Expelled(TITLE, 3, 1_000L),
+				new EarlyEnded(TITLE, 1_000L),
+				new CertificationRejected(TITLE, DAY, 2));
 	}
 
 	@Test
@@ -52,7 +54,7 @@ class NotificationContentTest {
 				allContents().stream().map(NotificationContent::type).collect(Collectors.toSet());
 
 		assertEquals(EnumSet.allOf(NotificationType.class), covered);
-		assertEquals(11, NotificationType.values().length);
+		assertEquals(12, NotificationType.values().length);
 	}
 
 	@Test
@@ -108,20 +110,48 @@ class NotificationContentTest {
 	}
 
 	@Test
-	void expelNoticeShowsFailCountAndExpelDateAndDeductionOnlyForPointChallenge() {
-		String withPoint = new ExpelNoticed(TITLE, 3, LocalDate.of(2026, 11, 18), 2_000L).body();
-		String withoutPoint = new ExpelNoticed(TITLE, 3, LocalDate.of(2026, 11, 18), null).body();
+	void expelledShowsFailCountAndArchiveGuideAndDeductionOnlyForPointChallenge() {
+		String withPoint = new Expelled(TITLE, 3, 2_000L).body();
+		String withoutPoint = new Expelled(TITLE, 3, null).body();
 
 		assertTrue(withPoint.contains("3회"));
-		assertTrue(withPoint.contains("11월 18일"));
+		assertTrue(withPoint.contains("보관함"));
 		assertTrue(withPoint.contains("걸어 둔 2,000P는 전액 차감돼요"));
 		assertFalse(withoutPoint.contains("차감"));
 	}
 
 	@Test
-	void earlyEndNoticeAddsSettlementSentenceOnlyForPointChallenge() {
-		assertTrue(new EarlyEndNoticed(TITLE, DAY, 1_000L).body().contains("정산"));
-		assertFalse(new EarlyEndNoticed(TITLE, DAY, null).body().contains("정산"));
+	void expelledDoesNotShowExpelDateBecauseExpulsionIsImmediate() {
+		String body = new Expelled(TITLE, 3, 2_000L).body();
+
+		assertFalse(body.contains("예정"));
+		assertFalse(body.matches(".*\\d+월 \\d+일.*"));
+	}
+
+	@Test
+	void earlyEndedUsesWikiSentenceAndAddsSettlementOnlyForPointChallenge() {
+		String wikiSentence = "참여자가 2명만 남아 오늘 챌린지가 종료됐어요. 오늘은 인증하지 않아도 되며 실패로 처리되지 않아요";
+
+		assertEquals(wikiSentence, new EarlyEnded(TITLE, null).body());
+		assertTrue(new EarlyEnded(TITLE, 1_000L).body().startsWith(wikiSentence));
+		assertTrue(new EarlyEnded(TITLE, 1_000L).body().contains("정산"));
+		assertFalse(new EarlyEnded(TITLE, null).body().contains("정산"));
+		assertEquals(TITLE + " 조기 종료", new EarlyEnded(TITLE, null).title());
+	}
+
+	@Test
+	void certificationRejectedUsesWikiTitleAndBody() {
+		CertificationRejected content = new CertificationRejected(TITLE, LocalDate.of(2026, 11, 17), 2);
+
+		assertEquals("매일 아침 러닝 인증이 승인되지 않았어요", content.title());
+		assertEquals("11월 17일 인증이 거절되어 실패 1회로 기록됐어요. 퇴장까지 남은 실패 가능 횟수는 2회예요.", content.body());
+		assertEquals(NotificationType.CERTIFICATION_REJECTED, content.type());
+	}
+
+	@Test
+	void certificationRejectedAllowsZeroRemainingFailsButNotNegative() {
+		assertTrue(new CertificationRejected(TITLE, DAY, 0).body().contains("남은 실패 가능 횟수는 0회예요."));
+		assertInvalid(() -> new CertificationRejected(TITLE, DAY, -1));
 	}
 
 	@Test
@@ -141,10 +171,10 @@ class NotificationContentTest {
 		assertInvalid(() -> new ParticipationApproved(" "));
 		assertInvalid(() -> new StartHeld(TITLE, null));
 		assertInvalid(() -> new ScheduleReset(TITLE, DAY, null));
-		assertInvalid(() -> new ExpelNoticed(TITLE, 0, DAY, null));
-		assertInvalid(() -> new ExpelNoticed(TITLE, 1, null, null));
+		assertInvalid(() -> new Expelled(TITLE, 0, null));
 		assertInvalid(() -> new JudgeOverdueWarning(TITLE, 0));
-		assertInvalid(() -> new EarlyEndNoticed(TITLE, null, null));
+		assertInvalid(() -> new EarlyEnded(TITLE, -1L));
+		assertInvalid(() -> new CertificationRejected(TITLE, null, 1));
 		assertInvalid(() -> new ParticipationRejected(TITLE, -1L));
 	}
 

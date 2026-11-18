@@ -1,6 +1,6 @@
 package com.morak.feature.notification.domain.entity;
 
-/** 알림 종류 11종 (위키 §4.8 표의 #1~#11 순서). 이름은 호출 도메인과 합의한 뒤 확정한다. */
+/** 알림 종류 12종 (위키 §4.8 표의 #1~#12 순서). 이름은 호출 도메인과 합의한 뒤 확정한다. */
 public enum NotificationType {
 	/** #1 참가 신청 승인 */
 	PARTICIPATION_APPROVED,
@@ -20,8 +20,10 @@ public enum NotificationType {
 	DEPUTY_ASSIGNED,
 	/** #9 인증 판정 기한 초과 경고 */
 	JUDGE_OVERDUE_WARNING,
-	/** #10 개인 실패 누적으로 퇴장 예정 */
-	EXPEL_NOTICED,
-	/** #11 공개 챌린지 조기 종료 예정 */
-	EARLY_END_NOTICED
+	/** #10 개인 실패 누적으로 퇴장 (공지와 동시에 퇴장, FRD 11/1) */
+	EXPELLED,
+	/** #11 공개 챌린지 조기 종료 (퇴장한 날 종료, FRD 11/1) */
+	EARLY_ENDED,
+	/** #12 인증 거절 (FRD 11/1) */
+	CERTIFICATION_REJECTED
 }

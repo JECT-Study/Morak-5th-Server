@@ -14,7 +14,8 @@ import java.util.Locale;
  * 포인트 문장은 pointAmount가 1 이상일 때만 붙인다. 포인트를 건 사람에게만 붙인다는 위키 §4.8 규칙을
  * "포인트를 걸지 않은 수신자는 null 또는 0을 넘긴다"로 구현한 것이다.
  *
- * TODO: 위키에는 #1·#2의 문구와 포인트 반환 문장만 있다. 나머지 문구와 제목은 비고 설명으로 만든 임시 문구이므로
+ * 위키(FRD 11/1)에 문구 원문이 있는 것은 #1, #2, #11 본문, #12 제목·본문, 포인트 반환 문장이다.
+ * TODO: #3~#9, #10의 제목·본문과 #11의 제목·정산 문장은 위키 비고 설명으로 만든 임시 문구이므로
  * FRD 알림 문구 원문이 확정되면 교체한다.
  */
 public sealed interface NotificationContent {
@@ -160,44 +161,70 @@ public sealed interface NotificationContent {
 		}
 	}
 
-	/** #10 개인 실패 누적으로 퇴장 예정 → 퇴장 대상자. 포인트 챌린지는 전액 차감 문장을 붙인다. */
-	record ExpelNoticed(String challengeTitle, int failCount, LocalDate expelDate, Long pointAmount)
-			implements NotificationContent {
+	/**
+	 * #10 개인 실패 누적으로 퇴장 → 퇴장 대상자. 공지와 동시에 퇴장하므로 퇴장일은 표시하지 않는다.
+	 * 실패 횟수와 보관함 안내를 보여 주고, 포인트 챌린지는 전액 차감 문장을 붙인다.
+	 */
+	record Expelled(String challengeTitle, int failCount, Long pointAmount) implements NotificationContent {
 
-		public ExpelNoticed {
+		public Expelled {
 			requireText(challengeTitle, "challengeTitle");
-			requireNonNull(expelDate, "expelDate");
 			requirePointAmount(pointAmount);
 			if (failCount < 1) {
 				throw invalid("failCount=" + failCount);
 			}
 		}
 
-		@Override public NotificationType type() { return NotificationType.EXPEL_NOTICED; }
-		@Override public String title() { return "퇴장 예정"; }
+		@Override public NotificationType type() { return NotificationType.EXPELLED; }
+		@Override public String title() { return "챌린지 퇴장"; }
 		@Override public String body() {
-			String base = challengeTitle + " 인증 실패가 " + failCount + "회 쌓여 "
-					+ MONTH_DAY.format(expelDate) + "에 퇴장될 예정이에요";
-			return hasPoint(pointAmount) ? base + String.format(" 걸어 둔 %,dP는 전액 차감돼요", pointAmount) : base;
+			String base = challengeTitle + " 인증 실패가 " + failCount
+					+ "회 쌓여 퇴장됐어요. 지금까지의 인증과 채팅 기록은 보관함에서 볼 수 있어요";
+			return hasPoint(pointAmount) ? base + String.format(". 걸어 둔 %,dP는 전액 차감돼요", pointAmount) : base;
 		}
 	}
 
-	/** #11 공개 챌린지 조기 종료 예정 → 남게 될 두 참여자. 포인트 챌린지는 정산 문장을 붙인다. */
-	record EarlyEndNoticed(String challengeTitle, LocalDate endDate, Long pointAmount) implements NotificationContent {
+	/**
+	 * #11 공개 챌린지 조기 종료 → 남은 두 참여자. 퇴장한 날 종료되므로 종료일은 항상 오늘이라 날짜를 받지 않는다.
+	 * 포인트 챌린지는 정산 문장을 붙인다.
+	 */
+	record EarlyEnded(String challengeTitle, Long pointAmount) implements NotificationContent {
 
-		public EarlyEndNoticed {
+		public EarlyEnded {
 			requireText(challengeTitle, "challengeTitle");
-			requireNonNull(endDate, "endDate");
 			requirePointAmount(pointAmount);
 		}
 
-		@Override public NotificationType type() { return NotificationType.EARLY_END_NOTICED; }
-		@Override public String title() { return "조기 종료 예정"; }
+		@Override public NotificationType type() { return NotificationType.EARLY_ENDED; }
+		@Override public String title() { return challengeTitle + " 조기 종료"; }
 		@Override public String body() {
-			String base = challengeTitle + " 챌린지가 " + MONTH_DAY.format(endDate) + "에 조기 종료될 예정이에요";
+			String base = "참여자가 2명만 남아 오늘 챌린지가 종료됐어요. 오늘은 인증하지 않아도 되며 실패로 처리되지 않아요";
 			return hasPoint(pointAmount)
 					? base + ". 포인트는 개인 성공률대로 정산되고 최대 100%까지 돌려받으며 추가 보상은 없어요"
 					: base;
+		}
+	}
+
+	/**
+	 * #12 인증 거절 → 인증이 거절된 참여자. 사유는 표시하지 않는다.
+	 * remainingFailCount는 퇴장 기준에서 누적 실패 횟수를 뺀 남은 실패 가능 횟수다.
+	 */
+	record CertificationRejected(String challengeTitle, LocalDate certDate, int remainingFailCount)
+			implements NotificationContent {
+
+		public CertificationRejected {
+			requireText(challengeTitle, "challengeTitle");
+			requireNonNull(certDate, "certDate");
+			if (remainingFailCount < 0) {
+				throw invalid("remainingFailCount=" + remainingFailCount);
+			}
+		}
+
+		@Override public NotificationType type() { return NotificationType.CERTIFICATION_REJECTED; }
+		@Override public String title() { return challengeTitle + " 인증이 승인되지 않았어요"; }
+		@Override public String body() {
+			return MONTH_DAY.format(certDate) + " 인증이 거절되어 실패 1회로 기록됐어요. 퇴장까지 남은 실패 가능 횟수는 "
+					+ remainingFailCount + "회예요.";
 		}
 	}
 
