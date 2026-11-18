@@ -10,12 +10,15 @@ import com.morak.feature.challenge.application.dto.result.CategoryItem;
 import com.morak.feature.challenge.application.dto.result.ChallengePage;
 import com.morak.feature.challenge.application.dto.result.ChallengeView;
 import com.morak.feature.challenge.application.dto.result.CreatedChallenge;
+import com.morak.feature.challenge.application.dto.result.RescheduledChallenge;
+import com.morak.feature.challenge.application.service.RescheduleChallengeService;
 import com.morak.feature.challenge.application.service.ChallengeCoverImages;
 import com.morak.feature.challenge.application.service.CreateChallengeService;
 import com.morak.feature.challenge.application.service.ReadChallengeService;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.presentation.dto.request.CreateChallengeRequest;
+import com.morak.feature.challenge.presentation.dto.request.RescheduleChallengeRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Encoding;
@@ -51,11 +54,34 @@ public class ChallengeController {
 	private final CreateChallengeService service;
 	private final ReadChallengeService readService;
 	private final ChallengeCoverImages coverImages;
+	private final RescheduleChallengeService rescheduleService;
 
-	public ChallengeController(CreateChallengeService service, ReadChallengeService readService, ChallengeCoverImages coverImages) {
+	public ChallengeController(CreateChallengeService service, ReadChallengeService readService,
+			ChallengeCoverImages coverImages, RescheduleChallengeService rescheduleService) {
 		this.service = service;
 		this.readService = readService;
 		this.coverImages = coverImages;
+		this.rescheduleService = rescheduleService;
+	}
+
+	/** TODO(D-27): 경로와 요청·응답은 위키·API 초안에 없는 제안이다. */
+	@PostMapping("/{id}/reschedule")
+	@Operation(summary = "시작 보류 챌린지 기간 재설정",
+			description = "방장만 시작 보류(START_HELD) 챌린지의 시작일·종료일을 다시 정합니다. 새 시작일은 내일부터, 기간은 최소 7일이며 "
+					+ "챌린지는 모집 중(RECRUITING)으로 돌아가고 방장을 뺀 대기·참여 중 참가자에게 알림이 갑니다. "
+					+ "이미 같은 기간으로 재설정돼 있으면 같은 응답입니다.")
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+				responseCode = "400", description = "시작일이 내일 이전이거나 기간이 7일 미만이거나 날짜가 올바르지 않습니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "방장이 아닙니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "챌린지가 없습니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "시작 보류 중이 아닙니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "알림 연동이 준비 중입니다.")
+	})
+	public ResponseEntity<ApiResponse<RescheduledChallenge>> reschedule(@PathVariable long id,
+			@AuthenticationPrincipal LoginUser user, @Valid @RequestBody RescheduleChallengeRequest request) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+				.body(ApiResponse.success(rescheduleService.reschedule(user.userId().value(), id, request.toCommand())));
 	}
 
 	@GetMapping
