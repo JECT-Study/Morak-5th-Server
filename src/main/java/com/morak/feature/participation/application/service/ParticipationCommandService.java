@@ -69,7 +69,7 @@ class ParticipationCommandService implements ParticipationCommand {
 				userIds.add(participation.getUserId());
 			}
 		}
-		userIds.forEach(points::lockAccount);
+		points.lockAccounts(userIds);
 		return userIds;
 	}
 

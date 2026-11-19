@@ -13,6 +13,7 @@ import com.morak.feature.point.domain.repository.PointTransactionRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -104,6 +105,13 @@ public class PointService {
 	public void lockAccountForChallengeCreation(Long userId) {
 		LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
 		accountRepository.lockForUpdate(userId, now);
+	}
+
+	/** 여러 유저의 계정 행을 유저 ID 오름차순으로 한 번에 잠근다. 챌린지를 잠그기 전에 호출해 락 순서를 지킨다. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void lockAccounts(Collection<Long> userIds) {
+		LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
+		accountRepository.lockAllForUpdate(userIds, now);
 	}
 
 	/**
