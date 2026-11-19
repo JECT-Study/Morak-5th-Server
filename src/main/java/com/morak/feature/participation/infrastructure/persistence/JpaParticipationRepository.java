@@ -42,6 +42,25 @@ interface JpaParticipationRepository extends JpaRepository<Participation, Long> 
 	List<Participation> findPendingByChallengeForUpdate(long challengeId);
 
 	@Query("""
+			select p from Participation p
+			where p.challengeId = :challengeId
+			and p.status in (com.morak.feature.participation.domain.enums.ParticipationStatus.PENDING,
+					com.morak.feature.participation.domain.enums.ParticipationStatus.ACTIVE)
+			order by p.id
+			""")
+	List<Participation> findDiscardableByChallenge(long challengeId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select p from Participation p
+			where p.challengeId = :challengeId
+			and p.status in (com.morak.feature.participation.domain.enums.ParticipationStatus.PENDING,
+					com.morak.feature.participation.domain.enums.ParticipationStatus.ACTIVE)
+			order by p.id
+			""")
+	List<Participation> findDiscardableByChallengeForUpdate(long challengeId);
+
+	@Query("""
 			select count(p) > 0 from Participation p
 			where p.challengeId = :challengeId
 			and p.status = com.morak.feature.participation.domain.enums.ParticipationStatus.ACTIVE

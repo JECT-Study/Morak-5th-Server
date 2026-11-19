@@ -3,6 +3,8 @@ package com.morak.feature.point.infrastructure.persistence;
 import com.morak.feature.point.domain.entity.PointAccount;
 import com.morak.feature.point.domain.repository.PointAccountRepository;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -39,6 +41,35 @@ public class PointAccountRepositoryAdapter implements PointAccountRepository {
 				.param("userId", userId)
 				.query(Long.class)
 				.single();
+	}
+
+	/** ORDER BY 뒤에 행을 잠그므로(PostgreSQL의 LockRows는 정렬 결과 순서로 잠근다) 잠금 순서가 유저 ID 오름차순으로 고정된다. */
+	@Override
+	public void lockAllForUpdate(Collection<Long> userIds, LocalDateTime nowUtc) {
+		if (userIds.isEmpty()) {
+			return;
+		}
+		List<Long> ids = userIds.stream().distinct().sorted().toList();
+		jdbc.sql("""
+				INSERT INTO morak.point_account (user_id, balance, created_at, updated_at)
+				SELECT user_id, 0, :now, :now FROM unnest(ARRAY[:userIds]::bigint[]) AS t(user_id) ORDER BY user_id
+				ON CONFLICT (user_id) DO NOTHING
+				""")
+				.param("userIds", ids)
+				.param("now", nowUtc)
+				.update();
+		List<Long> locked = jdbc.sql("""
+				SELECT user_id FROM morak.point_account
+				WHERE user_id IN (:userIds)
+				ORDER BY user_id
+				FOR UPDATE
+				""")
+				.param("userIds", ids)
+				.query(Long.class)
+				.list();
+		if (locked.size() != ids.size()) {
+			throw new IllegalStateException("잠그지 못한 포인트 계정이 있습니다. expected=" + ids.size() + " locked=" + locked.size());
+		}
 	}
 
 	@Override

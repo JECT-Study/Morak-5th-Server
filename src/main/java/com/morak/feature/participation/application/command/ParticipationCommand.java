@@ -3,6 +3,7 @@ package com.morak.feature.participation.application.command;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 다른 모듈(챌린지 등)에 공개하는 참가자 변경 API.
@@ -35,6 +36,27 @@ public interface ParticipationCommand {
 	 * {@link RoleHandOver#successorMissing()}으로 알린다.
 	 */
 	RoleHandOver handOverRoles(long challengeId, long departingParticipationId);
+
+	/**
+	 * 시작 전 폐기에 대비해 포인트가 걸린 참가자(PENDING·ACTIVE)의 포인트 계정을 사용자 번호 오름차순으로 잠근다.
+	 * 락 순서(포인트 계정 → 챌린지 → 참가자)를 지키려고 챌린지를 잠그기 전에 호출한다. 잠근 사용자 번호를 돌려준다.
+	 */
+	Set<Long> lockPointAccountsForDiscard(long challengeId);
+
+	/**
+	 * 시작 전 폐기로 참가자(PENDING·ACTIVE) 전원을 DISCARDED로 바꾸고 걸린 포인트를 전액 돌려준다. 챌린지를 잠근 뒤에 호출한다.
+	 * {@code lockedUserIds}에 없는 포인트 보유자가 있으면(그 사이 새로 지원) 아무것도 바꾸지 않고 409로 되돌린다.
+	 * participation_result는 만들지 않는다(위키 §4.2).
+	 */
+	List<DiscardedParticipation> discardAll(long challengeId, String challengeTitle, Set<Long> lockedUserIds, Instant now);
+
+	/**
+	 * 폐기된 참가.
+	 *
+	 * @param host 방장 본인 여부
+	 * @param refundedPoint 돌려준 포인트. 포인트가 걸리지 않았으면 0
+	 */
+	record DiscardedParticipation(long participationId, long userId, boolean host, int refundedPoint) {}
 
 	/** 무효가 된 신청. {@code hostUserId}는 신청한 챌린지의 방장으로, 무효 알림을 받는다. */
 	record InvalidatedApplication(long participationId, long challengeId, long hostUserId) {}

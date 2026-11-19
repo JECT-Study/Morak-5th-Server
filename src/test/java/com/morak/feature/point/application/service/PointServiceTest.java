@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -39,6 +40,14 @@ class PointServiceTest {
 	private final FakeTransactionRepository transactions = new FakeTransactionRepository();
 	private final PointService service = new PointService(
 			accounts, transactions, Clock.fixed(Instant.parse("2026-11-09T03:00:00.123456789Z"), ZoneOffset.UTC));
+
+	@Test
+	void lockAccountsLocksEveryUserInAscendingOrderAndCreatesMissingAccounts() {
+		service.lockAccounts(java.util.Set.of(OTHER_USER, USER));
+
+		assertEquals(List.of(USER, OTHER_USER), accounts.bulkLocked);
+		assertEquals(0L, service.getLedger(OTHER_USER, null, null).balance());
+	}
 
 	@Test
 	void grantIncreasesBalanceAndRecordsLedger() {
@@ -342,6 +351,16 @@ class PointServiceTest {
 			Long accountId = accountIds.computeIfAbsent(userId, id -> (long) accountIds.size() + 1);
 			balances.putIfAbsent(accountId, 0L);
 			return accountId;
+		}
+
+		final List<Long> bulkLocked = new ArrayList<>();
+
+		@Override
+		public void lockAllForUpdate(Collection<Long> userIds, LocalDateTime nowUtc) {
+			userIds.stream().sorted().forEach(userId -> {
+				lockForUpdate(userId, nowUtc);
+				bulkLocked.add(userId);
+			});
 		}
 
 		@Override

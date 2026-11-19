@@ -30,6 +30,12 @@ public interface ParticipationRepository {
 	/** 방장을 뺀 참여 중(ACTIVE) 참가자가 한 명이라도 있는지. 첫 합류자(부방장 지정 대상)인지 판단할 때 쓴다. */
 	boolean existsActiveMemberExceptHost(long challengeId);
 
+	/** 시작 전 폐기 대상(PENDING·ACTIVE)을 잠금 없이 읽는다. 락 순서 때문에 포인트 계정을 먼저 잠글 때 쓴다. */
+	List<Participation> findDiscardableByChallenge(long challengeId);
+
+	/** 시작 전 폐기 대상(PENDING·ACTIVE)을 행 잠금으로 가져온다. */
+	List<Participation> findDiscardableByChallengeForUpdate(long challengeId);
+
 	/** 챌린지의 참여 중(ACTIVE) 참가자를 행 잠금으로 가져온다. 합류 순서(joined_at, id)로 정렬한다. */
 	List<Participation> findActiveByChallengeForUpdate(long challengeId);
 }
