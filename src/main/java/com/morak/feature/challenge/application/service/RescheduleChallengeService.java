@@ -8,7 +8,6 @@ import com.morak.feature.challenge.application.port.out.ChallengeParticipationRe
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader.WaitingParticipant;
 import com.morak.feature.challenge.application.port.out.ChallengeScheduleResetNotice;
 import com.morak.feature.challenge.domain.entity.Challenge;
-import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
 import java.time.Clock;
@@ -23,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 알림이 실패하면 재설정도 롤백된다(폐기와 같은 정책).
  *
  * <p>TODO(D-27): 경로, 새 시작일 "내일부터"·최소 7일(개설과 같은 규칙), 횟수 제한 없음, 마감 이후에도 허용,
- * 알림 대상(방장을 뺀 ACTIVE·PENDING), 같은 기간 재호출의 멱등 응답은 위키에 없는 제안이다.
+ * 알림 대상(방장을 뺀 ACTIVE·PENDING)은 위키에 없는 제안이다.
  */
 @Service
 public class RescheduleChallengeService {
@@ -48,11 +47,7 @@ public class RescheduleChallengeService {
 		if (challenge.getOwnerUserId() != userId) {
 			throw new BusinessException(ChallengeErrorCode.NOT_OWNER);
 		}
-		// 응답이 유실돼 같은 요청을 다시 보낸 경우: 이미 같은 기간으로 되돌아와 있으면 알림 없이 같은 응답을 준다.
-		if (challenge.getStatus() == ChallengeStatus.RECRUITING && command.startDate().equals(challenge.getStartDate())
-				&& command.endDate().equals(challenge.getEndDate())) {
-			return toResult(challenge, challengeId);
-		}
+		// 이미 재설정돼 모집 중이면 같은 요청을 다시 보내도 409로 거절한다(알림 중복은 dedup_key가 막는다).
 		challenge.reschedule(command.startDate(), command.endDate(), clock.instant());
 		// 챌린지를 잠근 뒤에 읽으므로, 그 사이 승인·지원한 참가자도 빠지지 않는다.
 		List<WaitingParticipant> recipients = participants.findWaitingParticipants(challengeId);

@@ -69,7 +69,7 @@ public class ChallengeController {
 	@Operation(summary = "시작 보류 챌린지 기간 재설정",
 			description = "방장만 시작 보류(START_HELD) 챌린지의 시작일·종료일을 다시 정합니다. 새 시작일은 내일부터, 기간은 최소 7일이며 "
 					+ "챌린지는 모집 중(RECRUITING)으로 돌아가고 방장을 뺀 대기·참여 중 참가자에게 알림이 갑니다. "
-					+ "이미 같은 기간으로 재설정돼 있으면 같은 응답입니다.")
+					+ "이미 재설정돼 모집 중이면 같은 요청도 409입니다.")
 	@ApiResponses({
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(
 				responseCode = "400", description = "시작일이 내일 이전이거나 기간이 7일 미만이거나 날짜가 올바르지 않습니다."),
