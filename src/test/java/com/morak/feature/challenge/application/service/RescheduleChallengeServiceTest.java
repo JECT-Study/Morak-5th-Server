@@ -85,7 +85,7 @@ class RescheduleChallengeServiceTest {
 		BusinessException error = assertThrows(BusinessException.class,
 				() -> withoutNotice.reschedule(HOST, CHALLENGE, command(NEW_START, NEW_END)));
 
-		assertEquals(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE, error.getErrorCode());
+		assertEquals(ChallengeErrorCode.RESCHEDULE_INTEGRATION_UNAVAILABLE, error.getErrorCode());
 	}
 
 	@Test

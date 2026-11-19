@@ -10,7 +10,6 @@ import com.morak.feature.challenge.application.port.out.ChallengeScheduleResetNo
 import com.morak.feature.challenge.domain.entity.Challenge;
 import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
-import com.morak.feature.challenge.domain.policy.ChallengePeriod;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
 import java.time.Clock;
 import java.util.List;
@@ -54,14 +53,12 @@ public class RescheduleChallengeService {
 				&& command.endDate().equals(challenge.getEndDate())) {
 			return toResult(challenge, challengeId);
 		}
-		challenge.requireStartHeld();
-		ChallengePeriod.validateStartDate(command.startDate(), clock.instant());
-		challenge.reschedule(command.startDate(), command.endDate());
+		challenge.reschedule(command.startDate(), command.endDate(), clock.instant());
 		// 챌린지를 잠근 뒤에 읽으므로, 그 사이 승인·지원한 참가자도 빠지지 않는다.
 		List<WaitingParticipant> recipients = participants.findWaitingParticipants(challengeId);
 		if (!recipients.isEmpty()) {
 			ChallengeScheduleResetNotice notices = notice
-					.orElseThrow(() -> new BusinessException(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE));
+					.orElseThrow(() -> new BusinessException(ChallengeErrorCode.RESCHEDULE_INTEGRATION_UNAVAILABLE));
 			for (WaitingParticipant recipient : recipients) {
 				notices.scheduleReset(recipient.userId(), challengeId, recipient.participationId(), challenge.getTitle(),
 						command.startDate(), command.endDate());
