@@ -85,7 +85,7 @@ class RescheduleChallengeServiceTest {
 		BusinessException error = assertThrows(BusinessException.class,
 				() -> withoutNotice.reschedule(HOST, CHALLENGE, command(NEW_START, NEW_END)));
 
-		assertEquals(ChallengeErrorCode.CREATION_INTEGRATION_UNAVAILABLE, error.getErrorCode());
+		assertEquals(ChallengeErrorCode.RESCHEDULE_INTEGRATION_UNAVAILABLE, error.getErrorCode());
 	}
 
 	@Test
@@ -126,17 +126,30 @@ class RescheduleChallengeServiceTest {
 	}
 
 	@Test
-	void sameRequestAgainReturnsSameResponseWithoutNotifying() {
+	void sameRequestAgainIsRejectedWithoutNotifyingAgain() {
 		Challenge challenge = challenge(ChallengeStatus.START_HELD);
 		returns(challenge);
 		when(participants.findWaitingParticipants(CHALLENGE)).thenReturn(List.of(new WaitingParticipant(101, 2L)));
-		RescheduledChallenge first = service.reschedule(HOST, CHALLENGE, command(NEW_START, NEW_END));
+		service.reschedule(HOST, CHALLENGE, command(NEW_START, NEW_END));
 
-		RescheduledChallenge again = service.reschedule(HOST, CHALLENGE, command(NEW_START, NEW_END));
+		BusinessException error = assertThrows(BusinessException.class,
+				() -> service.reschedule(HOST, CHALLENGE, command(NEW_START, NEW_END)));
 
-		assertEquals(first, again);
+		assertEquals(ChallengeErrorCode.NOT_START_HELD, error.getErrorCode());
 		verify(notice).scheduleReset(2L, CHALLENGE, 101, "아침 독서", NEW_START, NEW_END);
 		verify(participants).findWaitingParticipants(anyLong());
+	}
+
+	@Test
+	void recruitingChallengeThatWasNeverHeldIsRejectedEvenWithItsCurrentPeriod() {
+		Challenge challenge = challenge(ChallengeStatus.RECRUITING);
+		returns(challenge);
+
+		BusinessException error = assertThrows(BusinessException.class,
+				() -> service.reschedule(HOST, CHALLENGE, command(challenge.getStartDate(), challenge.getEndDate())));
+
+		assertEquals(ChallengeErrorCode.NOT_START_HELD, error.getErrorCode());
+		verifyNoInteractions(participants, notice);
 	}
 
 	@Test
