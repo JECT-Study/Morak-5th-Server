@@ -26,6 +26,8 @@ public class Participation {
 
 	private static final Logger log = LoggerFactory.getLogger(Participation.class);
 
+	public static final String END_REASON_DISCARDED = "DISCARDED";
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -58,6 +60,14 @@ public class Participation {
 	/** 방장이 무효(INVALIDATED) 신청을 확인한 시각(UTC). 확인 전에는 null이며, 확인하면 승인 대기 목록에서 사라진다. */
 	@Column(name = "invalid_confirmed_at")
 	private LocalDateTime invalidConfirmedAt;
+
+	/** 참여가 끝난 시각(UTC). 시작 전 폐기 때 기록한다. */
+	@Column(name = "ended_at")
+	private LocalDateTime endedAt;
+
+	/** 참여가 끝난 사유(위키 §5 end_reason). 시작 전 폐기는 {@link #END_REASON_DISCARDED}. */
+	@Column(name = "end_reason", length = 30)
+	private String endReason;
 
 	protected Participation() {}
 
@@ -132,6 +142,24 @@ public class Participation {
 			participation.pointStatus = ParticipationPointStatus.HELD;
 		}
 		return participation;
+	}
+
+	/**
+	 * 챌린지가 시작 전에 폐기돼 참여가 끝난다(위키 §4.3). 승인 대기(PENDING)와 참여 중(ACTIVE)만 가능하며, 걸린 포인트는
+	 * 반환 상태로 바뀐다. 반환(원장) 처리는 호출한 쪽이 한다.
+	 * TODO(D-26): end_reason=DISCARDED와 ended_at 기록은 위키에 없는 제안이다.
+	 */
+	public void discard(Instant now) {
+		if (status != ParticipationStatus.PENDING && status != ParticipationStatus.ACTIVE) {
+			log.warn("참가 상태 전이 거절: participationId={}, from={}, to={}", id, status, ParticipationStatus.DISCARDED);
+			throw new BusinessException(ParticipationErrorCode.INVALID_STATUS_TRANSITION);
+		}
+		status = ParticipationStatus.DISCARDED;
+		if (pointStatus == ParticipationPointStatus.HELD) {
+			pointStatus = ParticipationPointStatus.REFUNDED;
+		}
+		endedAt = toUtc(now);
+		endReason = END_REASON_DISCARDED;
 	}
 
 	/** 동시 참여 한도에 걸려 대기 신청이 무효가 된다. 승인 대기 상태에서만 가능하다. */
@@ -209,6 +237,14 @@ public class Participation {
 
 	public ParticipationStatus getStatus() {
 		return status;
+	}
+
+	public LocalDateTime getEndedAt() {
+		return endedAt;
+	}
+
+	public String getEndReason() {
+		return endReason;
 	}
 
 	public LocalDateTime getJoinedAt() {

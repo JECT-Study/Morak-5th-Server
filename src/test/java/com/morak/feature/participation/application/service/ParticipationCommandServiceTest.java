@@ -36,7 +36,9 @@ class ParticipationCommandServiceTest {
 
 	private final ParticipationRepository repository = mock(ParticipationRepository.class);
 	private final ApplicationChallenges challenges = mock(ApplicationChallenges.class);
-	private final ParticipationCommandService service = new ParticipationCommandService(repository, challenges);
+	private final com.morak.feature.participation.application.port.out.ApplicantPoints points =
+			mock(com.morak.feature.participation.application.port.out.ApplicantPoints.class);
+	private final ParticipationCommandService service = new ParticipationCommandService(repository, challenges, points);
 
 	@Test
 	void registerHostSavesActiveHost() {

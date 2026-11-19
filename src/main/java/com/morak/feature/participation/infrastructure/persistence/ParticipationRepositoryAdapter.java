@@ -78,6 +78,16 @@ class ParticipationRepositoryAdapter implements ParticipationRepository {
 	}
 
 	@Override
+	public List<Participation> findDiscardableByChallenge(long challengeId) {
+		return repository.findDiscardableByChallenge(challengeId);
+	}
+
+	@Override
+	public List<Participation> findDiscardableByChallengeForUpdate(long challengeId) {
+		return refreshed(repository.findDiscardableByChallengeForUpdate(challengeId));
+	}
+
+	@Override
 	public boolean existsActiveMemberExceptHost(long challengeId) {
 		return repository.existsActiveMemberExceptHost(challengeId);
 	}

@@ -3,14 +3,18 @@ package com.morak.feature.participation.application.service;
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.participation.application.command.ParticipationCommand;
+import com.morak.feature.participation.application.port.out.ApplicantPoints;
 import com.morak.feature.participation.application.port.out.ApplicationChallenges;
 import com.morak.feature.participation.domain.entity.Participation;
 import com.morak.feature.participation.domain.enums.ParticipationRole;
+import com.morak.feature.participation.domain.exception.ParticipationErrorCode;
 import com.morak.feature.participation.domain.repository.ParticipationRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,10 +29,13 @@ class ParticipationCommandService implements ParticipationCommand {
 
 	private final ParticipationRepository participations;
 	private final ApplicationChallenges challenges;
+	private final ApplicantPoints points;
 
-	ParticipationCommandService(ParticipationRepository participations, ApplicationChallenges challenges) {
+	ParticipationCommandService(
+			ParticipationRepository participations, ApplicationChallenges challenges, ApplicantPoints points) {
 		this.participations = participations;
 		this.challenges = challenges;
+		this.points = points;
 	}
 
 	@Override
@@ -51,6 +58,44 @@ class ParticipationCommandService implements ParticipationCommand {
 		return Optional.of(pending.stream()
 				.map(p -> new InvalidatedApplication(p.getId(), p.getChallengeId(), hostOf(hostUserIds, p)))
 				.toList());
+	}
+
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public Set<Long> lockPointAccountsForDiscard(long challengeId) {
+		Set<Long> userIds = new TreeSet<>();
+		for (Participation participation : participations.findDiscardableByChallenge(challengeId)) {
+			if (participation.isPointHeld()) {
+				userIds.add(participation.getUserId());
+			}
+		}
+		userIds.forEach(points::lockAccount);
+		return userIds;
+	}
+
+	/** TODO(D-26): 폐기 중 새 지원이 끼어든 경우 409로 되돌리는 방식은 D-24와 같은 제안이다. */
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public List<DiscardedParticipation> discardAll(
+			long challengeId, String challengeTitle, Set<Long> lockedUserIds, Instant now) {
+		List<Participation> targets = participations.findDiscardableByChallengeForUpdate(challengeId);
+		for (Participation target : targets) {
+			if (target.isPointHeld() && !lockedUserIds.contains(target.getUserId())) {
+				throw new BusinessException(ParticipationErrorCode.PENDING_APPLICATIONS_CHANGED);
+			}
+		}
+		return targets.stream().map(target -> discard(target, challengeTitle, now)).toList();
+	}
+
+	private DiscardedParticipation discard(Participation target, String challengeTitle, Instant now) {
+		boolean pointHeld = target.isPointHeld();
+		int refunded = pointHeld ? target.getPointAmount() : 0;
+		target.discard(now);
+		if (pointHeld) {
+			points.release(target.getUserId(), target.getId(), challengeTitle, refunded);
+		}
+		return new DiscardedParticipation(
+				target.getId(), target.getUserId(), target.getRole() == ParticipationRole.HOST, refunded);
 	}
 
 	/**
