@@ -3,6 +3,12 @@ package com.morak.feature.challenge.application.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.dto.result.DiscardedChallenge;
@@ -31,6 +37,8 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.util.AopTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
@@ -59,7 +67,7 @@ class DiscardChallengeIntegrationTest {
 	@Autowired private DiscardChallengeService discardService;
 	@Autowired private ApplyParticipationService applyService;
 	@Autowired private DecideApplicationService decideService;
-	@Autowired private ParticipationCommand participationCommand;
+	@MockitoSpyBean private ParticipationCommand participationCommand;
 	@Autowired private PointService pointService;
 	@Autowired private TransactionTemplate transactionTemplate;
 
@@ -110,6 +118,25 @@ class DiscardChallengeIntegrationTest {
 		assertEquals(refunds, count("SELECT count(*) FROM morak.point_transaction WHERE idempotency_key LIKE 'REFUND:%'"));
 		assertEquals(notifications, count("SELECT count(*) FROM morak.notification WHERE type = 'CHALLENGE_DISCARDED'"));
 		assertEquals(10_000, balance(2L));
+	}
+
+	@Test
+	void applicationsChangedOnFirstAttemptIsRetriedInNewTransaction() {
+		long challenge = startHeldChallengeWithHostApprovedMemberAndPendingApplicant();
+		// 첫 시도에서 새 신청이 끼어든 것처럼 거절하고, 두 번째 시도는 실제로 처리한다.
+		// 트랜잭션 프록시를 거치지 않도록 스파이 본체에 스텁을 건다.
+		ParticipationCommand spy = AopTestUtils.getTargetObject(participationCommand);
+		doThrow(new BusinessException(ParticipationErrorCode.PENDING_APPLICATIONS_CHANGED)).doCallRealMethod()
+				.when(spy).discardAll(anyLong(), anyString(), any(), any());
+
+		DiscardedChallenge result = discardService.discard(HOST, challenge);
+
+		assertEquals("DISCARDED", result.status());
+		assertEquals("DISCARDED", challengeStatus(challenge));
+		verify(spy, times(2)).lockPointAccountsForDiscard(challenge);
+		assertEquals(3, count("SELECT count(*) FROM morak.point_transaction WHERE idempotency_key LIKE 'REFUND:%'"));
+		assertEquals(2, count("SELECT count(*) FROM morak.notification WHERE type = 'CHALLENGE_DISCARDED'"));
+		assertEquals(10_000, balance(3L));
 	}
 
 	@Test

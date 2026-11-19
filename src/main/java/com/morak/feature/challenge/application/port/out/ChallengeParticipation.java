@@ -17,7 +17,10 @@ public interface ChallengeParticipation {
 	/** 폐기에 대비해 포인트가 걸린 참가자의 계정을 사용자 번호 순으로 잠그고, 잠근 사용자 번호를 돌려준다. 챌린지를 잠그기 전에 부른다. */
 	Set<Long> lockPointAccountsForDiscard(long challengeId);
 
-	/** 참가자(대기·참여 중) 전원을 폐기 상태로 바꾸고 걸린 포인트를 전액 돌려준다. 챌린지를 잠근 뒤에 부른다. */
+	/**
+	 * 참가자(대기·참여 중) 전원을 폐기 상태로 바꾸고 걸린 포인트를 전액 돌려준다. 챌린지를 잠근 뒤에 부른다.
+	 * 잠그지 못한 포인트 보유자(그 사이 새 신청)가 있으면 {@code CHALLENGE_DISCARD_APPLICATIONS_CHANGED}로 거절한다.
+	 */
 	List<DiscardedParticipant> discardAll(long challengeId, String challengeTitle, Set<Long> lockedUserIds, Instant now);
 
 	record DiscardedParticipant(long participationId, long userId, boolean host, int refundedPoint) {}

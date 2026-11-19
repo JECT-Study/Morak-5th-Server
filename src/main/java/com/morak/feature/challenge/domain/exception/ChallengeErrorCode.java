@@ -19,6 +19,7 @@ public enum ChallengeErrorCode implements ErrorCode {
 	PRIVATE_CHALLENGE_FORBIDDEN(HttpStatus.FORBIDDEN, "비공개 챌린지를 조회할 권한이 없습니다."),
 	NOT_OWNER(HttpStatus.FORBIDDEN, "방장만 처리할 수 있습니다."),
 	NOT_START_HELD(HttpStatus.CONFLICT, "시작 보류 중인 챌린지만 처리할 수 있습니다."),
+	DISCARD_APPLICATIONS_CHANGED(HttpStatus.CONFLICT, "폐기하는 동안 참가 신청이 바뀌었습니다. 다시 시도해 주세요."),
 	DISCARD_INTEGRATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "챌린지 폐기 기능을 준비 중입니다.");
 
 	private final HttpStatus status;

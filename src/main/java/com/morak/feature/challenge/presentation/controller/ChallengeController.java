@@ -77,7 +77,7 @@ public class ChallengeController {
 					+ "이미 같은 기간으로 재설정돼 있으면 같은 응답입니다.")
 	@ApiResponses({
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(
-				responseCode = "200", description = "재설정 완료. 이미 같은 기간으로 재설정돼 있으면 같은 응답을 반환합니다.",
+				responseCode = "200", description = "재설정 완료.",
 				useReturnTypeSchema = true),
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(
 				responseCode = "400", description = "시작일이 내일 이전이거나 기간이 7일 미만이거나 날짜가 올바르지 않습니다."),
@@ -106,7 +106,7 @@ public class ChallengeController {
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "방장이 아닙니다."),
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "챌린지가 없습니다."),
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(
-				responseCode = "409", description = "시작 보류 중이 아니거나, 폐기 중 승인 대기 신청이 바뀌었습니다. 다시 시도해 주세요.")
+				responseCode = "409", description = "시작 보류 중이 아니거나, 자동 재시도 후에도 폐기하는 동안 참가 신청이 계속 바뀌었습니다. 다시 시도해 주세요.")
 	})
 	public ResponseEntity<ApiResponse<DiscardedChallenge>> discard(@PathVariable long id,
 			@AuthenticationPrincipal LoginUser user) {
