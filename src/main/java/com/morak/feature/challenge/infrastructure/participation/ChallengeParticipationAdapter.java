@@ -5,6 +5,7 @@ import com.morak.feature.participation.application.command.ParticipationCommand;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -27,5 +28,18 @@ class ChallengeParticipationAdapter implements ChallengeParticipation {
 				.map(applications -> applications.stream()
 						.map(a -> new InvalidatedApplication(a.participationId(), a.challengeId(), a.hostUserId()))
 						.toList());
+	}
+
+	@Override
+	public Set<Long> lockPointAccountsForDiscard(long challengeId) {
+		return participationCommand.lockPointAccountsForDiscard(challengeId);
+	}
+
+	@Override
+	public List<DiscardedParticipant> discardAll(
+			long challengeId, String challengeTitle, Set<Long> lockedUserIds, Instant now) {
+		return participationCommand.discardAll(challengeId, challengeTitle, lockedUserIds, now).stream()
+				.map(d -> new DiscardedParticipant(d.participationId(), d.userId(), d.host(), d.refundedPoint()))
+				.toList();
 	}
 }

@@ -91,6 +91,7 @@ public class Challenge extends BaseEntity {
 	public ChallengeVisibility getVisibility() { return visibility; }
 	public String getInviteCode() { return inviteCode; }
 	public ChallengeStatus getStatus() { return status; }
+	public boolean isDiscarded() { return status == ChallengeStatus.DISCARDED; }
 	public int getCapacity() { return capacity; }
 	public int getCurrentCount() { return currentCount; }
 	public int getPointAmount() { return pointAmount; }
@@ -124,6 +125,15 @@ public class Challenge extends BaseEntity {
 		this.startDate = newStartDate;
 		this.endDate = newEndDate;
 		this.status = ChallengeStatus.RECRUITING;
+	}
+
+	/**
+	 * 시작 보류(START_HELD) 챌린지를 폐기한다(위키 §4.2). 시작 후에는 임의로 폐기할 수 없으므로 다른 상태는 거절한다.
+	 * 참가자·포인트 처리는 호출한 쪽이 한다. 상태만 바꾸고 참여 인원(currentCount)은 기록으로 남긴다.
+	 */
+	public void discard() {
+		requireStartHeld(ChallengeStatus.DISCARDED);
+		status = ChallengeStatus.DISCARDED;
 	}
 
 	/** 방장이 바뀐다(방장·부방장 승계). 참가자의 역할 변경은 참가 도메인이 한다. */
