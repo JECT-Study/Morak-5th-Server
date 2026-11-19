@@ -21,6 +21,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -116,19 +117,24 @@ class DiscardChallengeIntegrationTest {
 		long challenge = startHeldChallengeWithHostApprovedMemberAndPendingApplicant();
 		int threads = 4;
 		ExecutorService pool = Executors.newFixedThreadPool(threads);
-		CountDownLatch start = new CountDownLatch(1);
-		List<Future<DiscardedChallenge>> futures = new ArrayList<>();
-		for (int i = 0; i < threads; i++) {
-			futures.add(pool.submit(() -> {
-				start.await();
-				return discardService.discard(HOST, challenge);
-			}));
+		try {
+			CountDownLatch start = new CountDownLatch(1);
+			List<Future<DiscardedChallenge>> futures = new ArrayList<>();
+			for (int i = 0; i < threads; i++) {
+				futures.add(pool.submit(() -> {
+					start.await();
+					return discardService.discard(HOST, challenge);
+				}));
+			}
+			start.countDown();
+			for (Future<DiscardedChallenge> future : futures) {
+				assertEquals("DISCARDED", future.get(30, TimeUnit.SECONDS).status());
+			}
+		} finally {
+			// 단언이 실패하거나 작업이 예외를 던져도 스레드가 남지 않게 한다.
+			pool.shutdownNow();
+			assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
 		}
-		start.countDown();
-		for (Future<DiscardedChallenge> future : futures) {
-			assertEquals("DISCARDED", future.get().status());
-		}
-		pool.shutdown();
 
 		assertEquals(3, count("SELECT count(*) FROM morak.point_transaction WHERE idempotency_key LIKE 'REFUND:%'"));
 		assertEquals(2, count("SELECT count(*) FROM morak.notification WHERE type = 'CHALLENGE_DISCARDED'"));
