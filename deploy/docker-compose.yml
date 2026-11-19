@@ -1,0 +1,23 @@
+# EC2에서 실행하는 운영 구성. CD 워크플로가 이 파일과 .env를 서버의 ~/morak으로 복사한 뒤 실행한다.
+# IMAGE는 CD 워크플로가 .env 끝에 커밋 SHA 태그로 적는다.
+services:
+  app:
+    image: ${IMAGE}
+    container_name: morak-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REDIS_HOST: redis
+    ports:
+      - "8080:8080"
+    mem_limit: 640m
+    depends_on:
+      - redis
+
+  # 서버 1대 전용. 외부에 포트를 열지 않고 app 컨테이너만 접근한다.
+  redis:
+    image: redis:7-alpine
+    container_name: morak-redis
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    mem_limit: 128m
