@@ -3,11 +3,16 @@ package com.morak.feature.challenge.application.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.reset;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.dto.command.RescheduleChallengeCommand;
 import com.morak.feature.challenge.application.dto.result.RescheduledChallenge;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import com.morak.feature.notification.application.dto.NotifyCommand;
+import com.morak.feature.notification.application.service.NotificationService;
 import com.morak.feature.participation.application.service.ApplyParticipationService;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -16,6 +21,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +31,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -52,6 +59,7 @@ class RescheduleChallengeIntegrationTest {
 	@Autowired private JdbcClient jdbc;
 	@Autowired private RescheduleChallengeService rescheduleService;
 	@Autowired private ApplyParticipationService applyService;
+	@MockitoSpyBean private NotificationService notificationService;
 
 	@BeforeEach
 	void clear() {
@@ -99,21 +107,50 @@ class RescheduleChallengeIntegrationTest {
 		long challenge = startHeldChallengeWithHostMemberAndPendingApplicant();
 		int threads = 4;
 		ExecutorService pool = Executors.newFixedThreadPool(threads);
-		CountDownLatch start = new CountDownLatch(1);
-		List<Future<RescheduledChallenge>> futures = new ArrayList<>();
-		for (int i = 0; i < threads; i++) {
-			futures.add(pool.submit(() -> {
-				start.await();
-				return rescheduleService.reschedule(HOST, challenge, command());
-			}));
+		try {
+			CountDownLatch start = new CountDownLatch(1);
+			List<Future<RescheduledChallenge>> futures = new ArrayList<>();
+			for (int i = 0; i < threads; i++) {
+				futures.add(pool.submit(() -> {
+					start.await();
+					return rescheduleService.reschedule(HOST, challenge, command());
+				}));
+			}
+			start.countDown();
+			for (Future<RescheduledChallenge> future : futures) {
+				assertEquals("RECRUITING", future.get(30, TimeUnit.SECONDS).status());
+			}
+		} finally {
+			// 단언이 실패하거나 작업이 예외를 던져도 스레드가 남지 않게 한다.
+			pool.shutdownNow();
+			assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
 		}
-		start.countDown();
-		for (Future<RescheduledChallenge> future : futures) {
-			assertEquals("RECRUITING", future.get().status());
-		}
-		pool.shutdown();
 
 		assertEquals(2, count("SELECT count(*) FROM morak.notification WHERE type = 'SCHEDULE_RESET'"));
+	}
+
+	@Test
+	void notificationFailureMidwayRollsBackRescheduleAndRetrySucceeds() {
+		long challenge = startHeldChallengeWithHostMemberAndPendingApplicant();
+		// 첫 수신자의 알림은 저장하고, 두 번째 수신자의 알림에서 실패시킨다.
+		doCallRealMethod().doThrow(new IllegalStateException("알림 저장 실패"))
+				.when(notificationService).notify(any(NotifyCommand.class));
+
+		assertThrows(IllegalStateException.class, () -> rescheduleService.reschedule(HOST, challenge, command()));
+
+		assertEquals("START_HELD", challengeStatus(challenge));
+		assertEquals(LocalDate.of(2026, 11, 16), challengeDate(challenge, "start_date"));
+		assertEquals(LocalDate.of(2026, 11, 29), challengeDate(challenge, "end_date"));
+		assertEquals(0, count("SELECT count(*) FROM morak.notification"));
+
+		reset(notificationService);
+		RescheduledChallenge retried = rescheduleService.reschedule(HOST, challenge, command());
+
+		assertEquals(new RescheduledChallenge(challenge, "RECRUITING", NEW_START, NEW_END), retried);
+		assertEquals(NEW_START, challengeDate(challenge, "start_date"));
+		assertEquals(List.of("SCHEDULE_RESET"), notificationTypes(2L));
+		assertEquals(List.of("SCHEDULE_RESET"), notificationTypes(3L));
+		assertEquals(2, count("SELECT count(*) FROM morak.notification"));
 	}
 
 	@Test
