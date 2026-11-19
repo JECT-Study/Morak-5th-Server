@@ -6,6 +6,7 @@ import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import com.morak.feature.challenge.domain.policy.ChallengePeriod;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -14,6 +15,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.time.LocalDate;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -116,11 +118,12 @@ public class Challenge extends BaseEntity {
 
 	/**
 	 * 시작 보류(START_HELD) 챌린지의 기간을 다시 정하고 모집 중(RECRUITING)으로 되돌린다(위키 §4.2).
-	 * 날짜 규칙은 호출한 쪽이 {@code ChallengePeriod}로 확인한다. 참여 인원·정원·포인트는 건드리지 않는다.
-	 * 마감(시작일+2일 23:59)은 컬럼이 아니라 시작일에서 계산하므로 따로 갱신할 값이 없다.
+	 * 상태를 먼저 확인한 뒤 새 시작일이 KST 기준 내일 이후인지 확인한다. 최소 7일 규칙은 요청 명령을 만들 때 이미 확인한다.
+	 * 참여 인원·정원·포인트는 건드리지 않는다. 마감(시작일+2일 23:59)은 컬럼이 아니라 시작일에서 계산하므로 따로 갱신할 값이 없다.
 	 */
-	public void reschedule(LocalDate newStartDate, LocalDate newEndDate) {
+	public void reschedule(LocalDate newStartDate, LocalDate newEndDate, Instant now) {
 		requireStartHeld(ChallengeStatus.RECRUITING);
+		ChallengePeriod.validateStartDate(newStartDate, now);
 		this.startDate = newStartDate;
 		this.endDate = newEndDate;
 		this.status = ChallengeStatus.RECRUITING;

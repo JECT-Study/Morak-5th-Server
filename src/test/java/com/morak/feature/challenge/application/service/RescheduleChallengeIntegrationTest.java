@@ -92,34 +92,44 @@ class RescheduleChallengeIntegrationTest {
 	}
 
 	@Test
-	void sameRequestAgainKeepsNotificationsUnchanged() {
+	void sameRequestAgainIsRejectedAndNotificationsStayUnchanged() {
 		long challenge = startHeldChallengeWithHostMemberAndPendingApplicant();
 		rescheduleService.reschedule(HOST, challenge, command());
 
-		RescheduledChallenge again = rescheduleService.reschedule(HOST, challenge, command());
+		BusinessException error =
+				assertThrows(BusinessException.class, () -> rescheduleService.reschedule(HOST, challenge, command()));
 
-		assertEquals("RECRUITING", again.status());
+		assertEquals(ChallengeErrorCode.NOT_START_HELD, error.getErrorCode());
+		assertEquals("RECRUITING", challengeStatus(challenge));
 		assertEquals(2, count("SELECT count(*) FROM morak.notification WHERE type = 'SCHEDULE_RESET'"));
 	}
 
 	@Test
-	void concurrentSameRequestsNotifyOnlyOnce() throws Exception {
+	void concurrentSameRequestsSucceedOnceAndNotifyOnlyOnce() throws Exception {
 		long challenge = startHeldChallengeWithHostMemberAndPendingApplicant();
 		int threads = 4;
 		ExecutorService pool = Executors.newFixedThreadPool(threads);
 		try {
 			CountDownLatch start = new CountDownLatch(1);
-			List<Future<RescheduledChallenge>> futures = new ArrayList<>();
+			List<Future<String>> futures = new ArrayList<>();
 			for (int i = 0; i < threads; i++) {
 				futures.add(pool.submit(() -> {
 					start.await();
-					return rescheduleService.reschedule(HOST, challenge, command());
+					try {
+						return rescheduleService.reschedule(HOST, challenge, command()).status();
+					} catch (BusinessException exception) {
+						return exception.getErrorCode().code();
+					}
 				}));
 			}
 			start.countDown();
-			for (Future<RescheduledChallenge> future : futures) {
-				assertEquals("RECRUITING", future.get(30, TimeUnit.SECONDS).status());
+			List<String> outcomes = new ArrayList<>();
+			for (Future<String> future : futures) {
+				outcomes.add(future.get(30, TimeUnit.SECONDS));
 			}
+			// 챌린지 잠금으로 한 요청만 재설정하고 나머지는 이미 모집 중이라 409로 거절된다.
+			assertEquals(1, outcomes.stream().filter("RECRUITING"::equals).count());
+			assertEquals(threads - 1, outcomes.stream().filter("CHALLENGE_NOT_START_HELD"::equals).count());
 		} finally {
 			// 단언이 실패하거나 작업이 예외를 던져도 스레드가 남지 않게 한다.
 			pool.shutdownNow();
