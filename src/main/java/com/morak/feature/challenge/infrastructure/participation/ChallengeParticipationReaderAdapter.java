@@ -11,6 +11,9 @@ import org.springframework.stereotype.Component;
 @Component
 class ChallengeParticipationReaderAdapter implements ChallengeParticipationReader {
 
+	private static final Set<String> WAITING_STATUSES = Set.of("ACTIVE", "PENDING");
+	private static final String HOST_ROLE = "HOST";
+
 	private final ParticipationQuery participationQuery;
 
 	ChallengeParticipationReaderAdapter(ParticipationQuery participationQuery) {
@@ -36,6 +39,14 @@ class ChallengeParticipationReaderAdapter implements ChallengeParticipationReade
 	@Override
 	public List<MyParticipationRow> findMine(long userId, Set<String> statuses, Long cursor, int limit) {
 		return participationQuery.findMyParticipations(userId, statuses, cursor, limit).stream().map(this::toRow).toList();
+	}
+
+	@Override
+	public List<WaitingParticipant> findWaitingParticipants(long challengeId) {
+		return participationQuery.findParticipants(challengeId, WAITING_STATUSES).stream()
+				.filter(participant -> !HOST_ROLE.equals(participant.role()))
+				.map(participant -> new WaitingParticipant(participant.participationId(), participant.userId()))
+				.toList();
 	}
 
 	private MyParticipationRow toRow(MyParticipation participation) {
