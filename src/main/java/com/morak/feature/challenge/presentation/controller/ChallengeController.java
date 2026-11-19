@@ -94,6 +94,10 @@ public class ChallengeController {
 	@Operation(summary = "시작 보류 챌린지 폐기",
 			description = "방장만 시작 보류(START_HELD) 챌린지를 폐기합니다. 모든 참가자의 걸린 포인트가 즉시 전액 반환되고 알림이 갑니다. 이미 폐기된 챌린지를 다시 호출해도 같은 응답입니다.")
 	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+				responseCode = "200", description = "폐기 완료. 이미 폐기된 챌린지도 같은 응답을 반환합니다.", useReturnTypeSchema = true),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+				responseCode = "401", description = "로그인이 필요하거나 액세스 토큰이 유효하지 않습니다."),
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "방장이 아닙니다."),
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "챌린지가 없습니다."),
 		@io.swagger.v3.oas.annotations.responses.ApiResponse(
