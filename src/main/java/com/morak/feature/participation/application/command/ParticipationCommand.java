@@ -58,6 +58,26 @@ public interface ParticipationCommand {
 	 */
 	record DiscardedParticipation(long participationId, long userId, boolean host, int refundedPoint) {}
 
+	/**
+	 * 정산이 확정될 때 참가자별 결과(participation_result)를 저장하고 새로 저장한 행 수를 돌려준다 (위키 §4.5).
+	 *
+	 * <ul>
+	 *   <li>이미 결과가 있는 참가자는 건너뛰므로 여러 번 호출해도 결과가 같다.
+	 *   <li>시작 전에 폐기됐거나 승인받지 못한 참가자는 행을 만들지 않는다.
+	 *   <li>없는 참가자 ID가 있으면 아무것도 저장하지 않고 예외를 던진다.
+	 *   <li>락 순서(포인트 계정 → 챌린지 → 참가자)는 호출한 정산 트랜잭션이 이미 지킨 상태여야 한다.
+	 * </ul>
+	 */
+	int recordResults(List<ResultInput> inputs, Instant finalizedAt);
+
+	/**
+	 * 한 참가자의 결과 입력. 승인 수·대상 수·연속 인증 일수·완주 여부는 정산하는 쪽이 계산해서 넘긴다.
+	 * 챌린지·사용자 ID는 참가자 행에서 읽으므로 받지 않는다. 인증률은 저장하는 쪽에서 계산한다.
+	 */
+	record ResultInput(
+			long participationId, int approvedCount, int totalCount, int currentStreak, int maxStreak,
+			boolean completed) {}
+
 	/** 무효가 된 신청. {@code hostUserId}는 신청한 챌린지의 방장으로, 무효 알림을 받는다. */
 	record InvalidatedApplication(long participationId, long challengeId, long hostUserId) {}
 
