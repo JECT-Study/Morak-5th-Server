@@ -31,7 +31,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * 시작 처리 스케줄러(위키 §4.9 ②, D-28)를 실제 PostgreSQL(Testcontainers)과 실제 트랜잭션으로 검증한다. Docker가 실행 중이어야 한다.
+ * 시작 처리 스케줄러(위키 §4.9 ②, D-29)를 실제 PostgreSQL(Testcontainers)과 실제 트랜잭션으로 검증한다. Docker가 실행 중이어야 한다.
  * 실제 cron 실행은 끄고 {@link StartDueChallengesService#runFor}를 직접 부른다.
  */
 @SpringBootTest(properties = {

@@ -124,6 +124,35 @@ class ParticipationCommandIntegrationTest {
 		assertEquals(2L, count("SELECT count(*) FROM morak.participation WHERE status = 'PENDING' AND user_id = 7"));
 	}
 
+	@Test
+	void recordResultsStoresOneRowPerParticipantAndIsIdempotent() {
+		long active = insert(20L, 3L, "HOST", "ACTIVE", "NONE");
+		long expelled = insert(20L, 4L, "MEMBER", "EXPELLED", "NONE");
+		long discarded = insert(20L, 5L, "MEMBER", "DISCARDED", "NONE");
+		List<ParticipationCommand.ResultInput> inputs = List.of(
+				new ParticipationCommand.ResultInput(active, 20, 25, 3, 7, true),
+				new ParticipationCommand.ResultInput(expelled, 5, 10, 0, 2, false),
+				new ParticipationCommand.ResultInput(discarded, 0, 0, 0, 0, false));
+
+		int first = inTransaction(() -> command.recordResults(inputs, NOW));
+		int second = inTransaction(() -> command.recordResults(inputs, NOW));
+
+		assertEquals(2, first);
+		assertEquals(0, second);
+		assertEquals(2L, count("SELECT count(*) FROM morak.participation_result"));
+		assertEquals("20:3:80.00:true", jdbc.sql("""
+				SELECT challenge_id || ':' || user_id || ':' || achievement_rate || ':' || completed
+				FROM morak.participation_result WHERE participation_id = :id
+				""").param("id", active).query(String.class).single());
+		assertEquals(NOW_UTC, jdbc.sql("SELECT finalized_at FROM morak.participation_result WHERE participation_id = :id")
+				.param("id", expelled).query(LocalDateTime.class).single());
+	}
+
+	@Test
+	void recordResultsRequiresATransaction() {
+		assertThrows(IllegalTransactionStateException.class, () -> command.recordResults(List.of(), NOW));
+	}
+
 	private <T> T inTransaction(java.util.function.Supplier<T> action) {
 		return new TransactionTemplate(transactionManager).execute(status -> action.get());
 	}

@@ -30,6 +30,6 @@ public class ChallengeDailyScheduler {
 		} catch (RuntimeException exception) {
 			log.error("챌린지 시작 처리 배치 실패", exception);
 		}
-		// TODO(D-28): ③ 자동 폐기(DiscardChallengeTransaction 재사용, 알림 #7)를 여기서 시작 처리 다음에 호출한다. 별도 작업.
+		// TODO(D-29): ③ 자동 폐기(DiscardChallengeTransaction 재사용, 알림 #7)를 여기서 시작 처리 다음에 호출한다. 별도 작업.
 	}
 }

@@ -166,7 +166,7 @@ public class Challenge extends BaseEntity {
 	/**
 	 * 챌린지를 시작한다(위키 §4.2). 시작일은 시작되는 날로 바뀌고, 기간 길이는 유지한다(D-10):
 	 * {@code end_date = today + (원래 일수 - 1)}. 예정일 당일 시작은 날짜가 그대로고, 연장 중 시작·누락 보정은 밀린다.
-	 * 참여 인원·참가자 상태는 건드리지 않는다. TODO(D-28): 누락 보정에도 같은 식을 쓰는 것은 제안이다.
+	 * 참여 인원·참가자 상태는 건드리지 않는다. TODO(D-29): 누락 보정에도 같은 식을 쓰는 것은 제안이다.
 	 */
 	public void start(LocalDate today) {
 		if (!isStartDue(today)) {

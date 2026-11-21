@@ -21,7 +21,7 @@ class NotificationChallengeStartHeldNotice implements ChallengeStartHeldNotice {
 	@Override
 	public void startHeld(
 			long recipientUserId, long challengeId, String challengeTitle, LocalDate deadlineDate, LocalDate startDate) {
-		// 같은 날 배치를 다시 돌려도 한 번만 남고, 재설정 후 새 시작일에 다시 보류되면 새로 남는다. TODO(D-28)
+		// 같은 날 배치를 다시 돌려도 한 번만 남고, 재설정 후 새 시작일에 다시 보류되면 새로 남는다. TODO(D-29)
 		notifications.notify(new NotifyCommand(
 				recipientUserId,
 				new NotificationContent.StartHeld(challengeTitle, deadlineDate),

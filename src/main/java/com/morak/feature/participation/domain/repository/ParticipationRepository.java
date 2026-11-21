@@ -12,6 +12,9 @@ public interface ParticipationRepository {
 
 	Optional<Participation> findById(long id);
 
+	/** 주어진 ID의 참가자를 잠금 없이 읽는다. 없는 ID는 결과에 없다. */
+	List<Participation> findAllByIds(Collection<Long> ids);
+
 	/** 행 잠금으로 가져온다. 승인·거절처럼 상태를 바꾸는 흐름에서 쓴다. */
 	Optional<Participation> findByIdForUpdate(long id);
 

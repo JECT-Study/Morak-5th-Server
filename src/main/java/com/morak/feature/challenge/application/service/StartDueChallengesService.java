@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
  * 이 클래스에는 트랜잭션을 걸지 않는다(걸면 한 건 실패가 전체를 되돌린다).
  *
  * <p>미달로 시작 보류에 남는 챌린지는 계속 후보이므로 offset이 아니라 id 기준으로 다음 페이지를 읽는다.
- * TODO(D-28): 지난 날짜의 모집 중 챌린지도 처리하는 누락 보정과 페이지 크기(100)는 제안이다.
+ * TODO(D-29): 지난 날짜의 모집 중 챌린지도 처리하는 누락 보정과 페이지 크기(100)는 제안이다.
  */
 @Service
 public class StartDueChallengesService {
