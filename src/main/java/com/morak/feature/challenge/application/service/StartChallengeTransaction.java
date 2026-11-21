@@ -62,7 +62,7 @@ public class StartChallengeTransaction {
 		challenge.holdStart();
 		LocalDate deadline = challenge.recruitDeadlineDate();
 		if (deadline.isBefore(today)) {
-			// 서버가 멈춰 있어 늦게 처리한 경우다. 이미 지난 기한을 안내하지 않고, 같은 배치의 자동 폐기가 처리한다.
+			// 서버가 멈춰 있어 늦게 처리한 경우다. 이미 지난 기한은 안내하지 않는다. 자동 폐기(③, #36 후속)가 들어오면 같은 배치에서 폐기된다.
 			log.warn("챌린지 시작 보류(기한 경과로 알림 생략): challengeId={}, startDate={}, today={}", challengeId,
 					challenge.getStartDate(), today);
 			return Outcome.HELD;
