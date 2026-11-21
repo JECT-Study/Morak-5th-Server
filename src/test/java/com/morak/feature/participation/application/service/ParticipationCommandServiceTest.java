@@ -22,6 +22,7 @@ import com.morak.feature.participation.domain.enums.ParticipationPointStatus;
 import com.morak.feature.participation.domain.enums.ParticipationRole;
 import com.morak.feature.participation.domain.enums.ParticipationStatus;
 import com.morak.feature.participation.domain.repository.ParticipationRepository;
+import com.morak.feature.participation.domain.repository.ParticipationResultRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -38,7 +39,8 @@ class ParticipationCommandServiceTest {
 	private final ApplicationChallenges challenges = mock(ApplicationChallenges.class);
 	private final com.morak.feature.participation.application.port.out.ApplicantPoints points =
 			mock(com.morak.feature.participation.application.port.out.ApplicantPoints.class);
-	private final ParticipationCommandService service = new ParticipationCommandService(repository, challenges, points);
+	private final ParticipationCommandService service = new ParticipationCommandService(
+			repository, mock(ParticipationResultRepository.class), challenges, points);
 
 	@Test
 	void registerHostSavesActiveHost() {

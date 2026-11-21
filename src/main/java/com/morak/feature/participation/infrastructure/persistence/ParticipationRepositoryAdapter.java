@@ -46,6 +46,14 @@ class ParticipationRepositoryAdapter implements ParticipationRepository {
 		return repository.findById(id);
 	}
 
+	@Override
+	public List<Participation> findAllByIds(Collection<Long> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		return repository.findAllById(ids);
+	}
+
 	/** 잠금 조회는 이미 읽어 둔 엔티티의 값을 갱신하지 않으므로, 잠근 직후 최신 값으로 다시 읽는다 (챌린지 어댑터와 같은 이유). */
 	@Override
 	public Optional<Participation> findByIdForUpdate(long id) {

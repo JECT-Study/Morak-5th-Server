@@ -6,15 +6,19 @@ import com.morak.feature.participation.application.command.ParticipationCommand;
 import com.morak.feature.participation.application.port.out.ApplicantPoints;
 import com.morak.feature.participation.application.port.out.ApplicationChallenges;
 import com.morak.feature.participation.domain.entity.Participation;
+import com.morak.feature.participation.domain.entity.ParticipationResult;
 import com.morak.feature.participation.domain.enums.ParticipationRole;
 import com.morak.feature.participation.domain.exception.ParticipationErrorCode;
 import com.morak.feature.participation.domain.repository.ParticipationRepository;
+import com.morak.feature.participation.domain.repository.ParticipationResultRepository;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,12 +32,14 @@ class ParticipationCommandService implements ParticipationCommand {
 	private static final Logger log = LoggerFactory.getLogger(ParticipationCommandService.class);
 
 	private final ParticipationRepository participations;
+	private final ParticipationResultRepository results;
 	private final ApplicationChallenges challenges;
 	private final ApplicantPoints points;
 
-	ParticipationCommandService(
-			ParticipationRepository participations, ApplicationChallenges challenges, ApplicantPoints points) {
+	ParticipationCommandService(ParticipationRepository participations, ParticipationResultRepository results,
+			ApplicationChallenges challenges, ApplicantPoints points) {
 		this.participations = participations;
+		this.results = results;
 		this.challenges = challenges;
 		this.points = points;
 	}
@@ -152,6 +158,40 @@ class ParticipationCommandService implements ParticipationCommand {
 	/** 남은 참여자 중 합류 순서가 가장 빠른 일반 참가자. 없으면 null. */
 	private static Participation firstMember(List<Participation> remaining) {
 		return remaining.stream().filter(p -> p.getRole() == ParticipationRole.MEMBER).findFirst().orElse(null);
+	}
+
+	/** TODO(D-28): 반환 포인트 컬럼 없이 저장한다(반환은 원장 SETTLE에 남는다). 연속 인증 일수는 호출한 쪽 값을 그대로 쓴다. */
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public int recordResults(List<ResultInput> inputs, Instant finalizedAt) {
+		if (inputs.isEmpty()) {
+			return 0;
+		}
+		List<Long> ids = inputs.stream().map(ResultInput::participationId).toList();
+		Map<Long, Participation> byId = participations.findAllByIds(ids).stream()
+				.collect(Collectors.toMap(Participation::getId, Function.identity()));
+		// 하나라도 없는 ID면 저장을 시작하기 전에 거절한다.
+		if (ids.stream().anyMatch(id -> !byId.containsKey(id))) {
+			throw new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND);
+		}
+		// 이미 저장된 참가자와 이번 입력에서 먼저 처리한 참가자를 함께 담아 중복 저장을 막는다.
+		Set<Long> handled = new HashSet<>(results.findExistingParticipationIds(ids));
+		int saved = 0;
+		for (ResultInput input : inputs) {
+			Participation participation = byId.get(input.participationId());
+			if (!participation.canHaveResult()) {
+				log.info("결과 저장 건너뜀: participationId={}, status={}", participation.getId(), participation.getStatus());
+				continue;
+			}
+			if (!handled.add(participation.getId())) {
+				continue;
+			}
+			results.save(ParticipationResult.of(participation.getId(), participation.getChallengeId(),
+					participation.getUserId(), input.approvedCount(), input.totalCount(), input.currentStreak(),
+					input.maxStreak(), input.completed(), finalizedAt));
+			saved++;
+		}
+		return saved;
 	}
 
 	private static long hostOf(Map<Long, Long> hostUserIds, Participation application) {

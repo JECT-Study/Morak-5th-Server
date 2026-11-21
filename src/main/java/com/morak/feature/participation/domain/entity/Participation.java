@@ -114,6 +114,15 @@ public class Participation {
 		}
 	}
 
+	/**
+	 * 챌린지 결과(participation_result) 행을 가질 수 있는 참가자인지. 참여가 확정된 적이 있어야 한다.
+	 * 시작 전에 폐기된 참가자(DISCARDED)와 승인받지 못한 신청(PENDING·REJECTED·INVALIDATED)은 결과를 만들지 않는다 (위키 §4.2).
+	 */
+	public boolean canHaveResult() {
+		return status == ParticipationStatus.ACTIVE || status == ParticipationStatus.COMPLETED
+				|| status == ParticipationStatus.EXPELLED || status == ParticipationStatus.EARLY_ENDED;
+	}
+
 	/** 포인트가 걸려 있어 거절·무효화 때 반환해야 하는지. */
 	public boolean isPointHeld() {
 		return pointStatus == ParticipationPointStatus.HELD;
