@@ -5,6 +5,7 @@ import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.participation.application.command.ParticipationCommand;
 import com.morak.feature.participation.application.port.out.ApplicantPoints;
 import com.morak.feature.participation.application.port.out.ApplicationChallenges;
+import com.morak.feature.participation.application.port.out.ApplicationNotifier;
 import com.morak.feature.participation.domain.entity.Participation;
 import com.morak.feature.participation.domain.entity.ParticipationResult;
 import com.morak.feature.participation.domain.enums.ParticipationRole;
@@ -35,13 +36,15 @@ class ParticipationCommandService implements ParticipationCommand {
 	private final ParticipationResultRepository results;
 	private final ApplicationChallenges challenges;
 	private final ApplicantPoints points;
+	private final ApplicationNotifier notifier;
 
 	ParticipationCommandService(ParticipationRepository participations, ParticipationResultRepository results,
-			ApplicationChallenges challenges, ApplicantPoints points) {
+			ApplicationChallenges challenges, ApplicantPoints points, ApplicationNotifier notifier) {
 		this.participations = participations;
 		this.results = results;
 		this.challenges = challenges;
 		this.points = points;
+		this.notifier = notifier;
 	}
 
 	@Override
@@ -69,14 +72,47 @@ class ParticipationCommandService implements ParticipationCommand {
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Set<Long> lockPointAccountsForDiscard(long challengeId) {
+		return lockPointAccounts(participations.findDiscardableByChallenge(challengeId));
+	}
+
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public Set<Long> lockPendingPointAccounts(long challengeId) {
+		return lockPointAccounts(participations.findPendingByChallenge(challengeId));
+	}
+
+	private Set<Long> lockPointAccounts(List<Participation> targets) {
 		Set<Long> userIds = new TreeSet<>();
-		for (Participation participation : participations.findDiscardableByChallenge(challengeId)) {
-			if (participation.isPointHeld()) {
-				userIds.add(participation.getUserId());
+		for (Participation target : targets) {
+			if (target.isPointHeld()) {
+				userIds.add(target.getUserId());
 			}
 		}
 		points.lockAccounts(userIds);
 		return userIds;
+	}
+
+	/**
+	 * 정원이 차는 승인의 자동 거절(위키 §4.3)과 같은 방식으로 거절·반환·알림 #2를 처리한다.
+	 * TODO(D-29): 시작 중 새 지원이 끼어든 경우 409로 되돌리는 방식과 알림 #2 문구 재사용은 제안이다.
+	 */
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public List<RejectedApplication> rejectPendingOnStart(long challengeId, String challengeTitle, Set<Long> lockedUserIds) {
+		List<Participation> pending = participations.findPendingByChallengeForUpdate(challengeId);
+		requireLockedPointAccounts(pending, lockedUserIds);
+		return pending.stream().map(application -> rejectOnStart(application, challengeId, challengeTitle)).toList();
+	}
+
+	private RejectedApplication rejectOnStart(Participation application, long challengeId, String challengeTitle) {
+		boolean pointHeld = application.isPointHeld();
+		int refunded = pointHeld ? application.getPointAmount() : 0;
+		application.reject();
+		if (pointHeld) {
+			points.release(application.getUserId(), application.getId(), challengeTitle, refunded);
+		}
+		notifier.rejected(application.getUserId(), challengeId, application.getId(), challengeTitle, refunded);
+		return new RejectedApplication(application.getId(), application.getUserId(), refunded);
 	}
 
 	/** TODO(D-26): 폐기 중 새 지원이 끼어든 경우 409로 되돌리는 방식은 D-24와 같은 제안이다. */
@@ -85,12 +121,17 @@ class ParticipationCommandService implements ParticipationCommand {
 	public List<DiscardedParticipation> discardAll(
 			long challengeId, String challengeTitle, Set<Long> lockedUserIds, Instant now) {
 		List<Participation> targets = participations.findDiscardableByChallengeForUpdate(challengeId);
+		requireLockedPointAccounts(targets, lockedUserIds);
+		return targets.stream().map(target -> discard(target, challengeTitle, now)).toList();
+	}
+
+	/** 상태나 포인트를 바꾸기 전에 모든 대상의 계정 잠금을 확인한다. */
+	private static void requireLockedPointAccounts(List<Participation> targets, Set<Long> lockedUserIds) {
 		for (Participation target : targets) {
 			if (target.isPointHeld() && !lockedUserIds.contains(target.getUserId())) {
 				throw new BusinessException(ParticipationErrorCode.PENDING_APPLICATIONS_CHANGED);
 			}
 		}
-		return targets.stream().map(target -> discard(target, challengeTitle, now)).toList();
 	}
 
 	private DiscardedParticipation discard(Participation target, String challengeTitle, Instant now) {

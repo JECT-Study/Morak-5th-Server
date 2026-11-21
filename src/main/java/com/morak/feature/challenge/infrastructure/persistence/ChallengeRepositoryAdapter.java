@@ -4,6 +4,8 @@ import com.morak.feature.challenge.domain.entity.Challenge;
 import com.morak.feature.challenge.domain.exception.InviteCodeConflictException;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
 import jakarta.persistence.EntityManager;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -52,5 +54,10 @@ class ChallengeRepositoryAdapter implements ChallengeRepository {
 		Optional<Challenge> locked = repository.findByIdForUpdate(id);
 		locked.ifPresent(entityManager::refresh);
 		return locked;
+	}
+
+	@Override
+	public List<Long> findStartDueIds(LocalDate today, long afterId, int limit) {
+		return repository.findStartDueIds(today, afterId, limit);
 	}
 }

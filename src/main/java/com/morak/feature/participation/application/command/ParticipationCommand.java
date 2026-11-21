@@ -51,6 +51,26 @@ public interface ParticipationCommand {
 	List<DiscardedParticipation> discardAll(long challengeId, String challengeTitle, Set<Long> lockedUserIds, Instant now);
 
 	/**
+	 * 시작 처리에 대비해 포인트가 걸린 승인 대기(PENDING) 신청자의 포인트 계정을 사용자 번호 오름차순으로 잠근다.
+	 * 락 순서(포인트 계정 → 챌린지 → 참가자)를 지키려고 챌린지를 잠그기 전에 호출한다. 잠근 사용자 번호를 돌려준다.
+	 */
+	Set<Long> lockPendingPointAccounts(long challengeId);
+
+	/**
+	 * 챌린지가 시작될 때 남은 승인 대기(PENDING) 신청을 모두 거절(REJECTED)하고 걸린 포인트를 전액 돌려주며, 신청자에게 알림 #2를 보낸다.
+	 * 챌린지를 잠근 뒤에 호출한다. {@code lockedUserIds}에 없는 포인트 보유 신청자가 있으면(그 사이 새로 지원) 아무것도 바꾸지 않고
+	 * 409로 되돌린다. 위키 §9 O-21(PM 확정 2026-11-21).
+	 */
+	List<RejectedApplication> rejectPendingOnStart(long challengeId, String challengeTitle, Set<Long> lockedUserIds);
+
+	/**
+	 * 시작 처리로 거절된 신청.
+	 *
+	 * @param refundedPoint 돌려준 포인트. 포인트가 걸리지 않았으면 0
+	 */
+	record RejectedApplication(long participationId, long userId, int refundedPoint) {}
+
+	/**
 	 * 폐기된 참가.
 	 *
 	 * @param host 방장 본인 여부

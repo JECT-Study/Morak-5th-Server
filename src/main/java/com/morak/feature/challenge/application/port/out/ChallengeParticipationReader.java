@@ -1,5 +1,6 @@
 package com.morak.feature.challenge.application.port.out;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -20,6 +21,9 @@ public interface ChallengeParticipationReader {
 
 	/** 시작 대기 중인 참가자(승인된 참여자와 승인 대기 신청자)에서 방장을 뺀 목록. 기간 재설정 알림 대상이다. */
 	List<WaitingParticipant> findWaitingParticipants(long challengeId);
+
+	/** 주어진 시각 전에 합류한 인원(방장 포함, 승인 대기 제외). 시작 처리에서 추가 모집 마감까지 최소 인원을 채웠는지 볼 때 쓴다. */
+	int countJoinedBefore(long challengeId, Instant before);
 
 	record WaitingParticipant(long participationId, long userId) {}
 

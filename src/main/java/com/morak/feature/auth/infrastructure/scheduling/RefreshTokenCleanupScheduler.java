@@ -4,11 +4,9 @@ import com.morak.feature.auth.application.service.RefreshTokenCleanupService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
 @Configuration(proxyBeanMethods = false)
-@EnableScheduling
 public class RefreshTokenCleanupScheduler {
 	private static final Logger log = LoggerFactory.getLogger(RefreshTokenCleanupScheduler.class);
 	private final RefreshTokenCleanupService cleanupService;
