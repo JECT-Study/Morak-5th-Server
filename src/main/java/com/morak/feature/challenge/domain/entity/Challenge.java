@@ -160,6 +160,14 @@ public class Challenge extends BaseEntity {
 	}
 
 	/**
+	 * 자동 폐기 스케줄러가 폐기할 수 있는지(위키 §4.9 ③). 시작 보류이고 추가 모집 마감일(예정 시작일 + 2일)이 오늘보다 앞설 때,
+	 * 즉 마감일 23:59가 지난 다음 날 00:00부터다. 서버가 멈춰 며칠 지났어도 같다(누락 보정).
+	 */
+	public boolean isDiscardDue(LocalDate today) {
+		return status == ChallengeStatus.START_HELD && recruitDeadlineDate().isBefore(today);
+	}
+
+	/**
 	 * 시작 처리 스케줄러가 평가할 수 있는 상태인지(위키 §4.9 ②).
 	 * 모집 중은 시작일이 오늘이거나 지났을 때(누락 보정 포함), 시작 보류는 실제로 보류된 날의 다음 날부터다.
 	 * 보류된 당일에는 시작하지 않는다("연장 중 충족하면 다음 날 00:00 자동 시작"). 누락 보정으로 시작일보다 늦게 보류됐어도

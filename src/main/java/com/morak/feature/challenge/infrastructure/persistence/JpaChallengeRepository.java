@@ -24,4 +24,13 @@ interface JpaChallengeRepository extends JpaRepository<Challenge, Long> {
 			LIMIT :limit
 			""", nativeQuery = true)
 	List<Long> findStartDueIds(LocalDate today, long afterId, int limit);
+
+	@Query(value = """
+			SELECT id FROM {h-schema}challenge
+			WHERE deleted_at IS NULL AND id > :afterId
+			AND status = 'START_HELD' AND start_date < :startDateBefore
+			ORDER BY id
+			LIMIT :limit
+			""", nativeQuery = true)
+	List<Long> findDiscardDueIds(LocalDate startDateBefore, long afterId, int limit);
 }

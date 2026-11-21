@@ -60,4 +60,10 @@ class ChallengeRepositoryAdapter implements ChallengeRepository {
 	public List<Long> findStartDueIds(LocalDate today, long afterId, int limit) {
 		return repository.findStartDueIds(today, afterId, limit);
 	}
+
+	@Override
+	public List<Long> findDiscardDueIds(LocalDate today, long afterId, int limit) {
+		// 마감일(start_date + 2) < 오늘 ⇔ start_date < 오늘 - 2. 인덱스를 쓸 수 있게 날짜 쪽을 계산해 넘긴다.
+		return repository.findDiscardDueIds(today.minusDays(2), afterId, limit);
+	}
 }

@@ -18,6 +18,7 @@ import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.challenge.application.dto.result.DiscardedChallenge;
 import com.morak.feature.challenge.application.port.out.ChallengeDiscardNotice;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipation.DiscardedParticipant;
 import com.morak.feature.challenge.domain.entity.Challenge;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
@@ -45,7 +46,7 @@ class DiscardChallengeServiceTest {
 	private final ChallengeParticipation participation = mock(ChallengeParticipation.class);
 	private final ChallengeDiscardNotice notice = mock(ChallengeDiscardNotice.class);
 	private final DiscardChallengeTransaction transaction = new DiscardChallengeTransaction(
-			challenges, Optional.of(participation), Clock.fixed(NOW, ZoneOffset.UTC));
+			challenges, Optional.of(participation), mock(ChallengeParticipationReader.class), Clock.fixed(NOW, ZoneOffset.UTC));
 	private final DiscardChallengeService service = new DiscardChallengeService(
 			transaction, Optional.of(notice), mock(PlatformTransactionManager.class));
 
@@ -100,7 +101,7 @@ class DiscardChallengeServiceTest {
 		BusinessException error = assertThrows(BusinessException.class, () -> service.discard(HOST, CHALLENGE));
 
 		assertEquals(ChallengeErrorCode.DISCARD_APPLICATIONS_CHANGED, error.getErrorCode());
-		verify(participation, times(DiscardChallengeService.MAX_ATTEMPTS)).discardAll(anyLong(), anyString(), any(), any());
+		verify(participation, times(DiscardRetry.MAX_ATTEMPTS)).discardAll(anyLong(), anyString(), any(), any());
 		verifyNoInteractions(notice);
 	}
 
