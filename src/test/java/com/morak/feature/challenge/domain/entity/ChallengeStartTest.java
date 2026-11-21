@@ -86,20 +86,49 @@ class ChallengeStartTest {
 	void onlyRecruitingCanBeHeld() {
 		Challenge challenge = challenge(ChallengeStatus.RECRUITING, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 7));
 
-		challenge.holdStart();
+		challenge.holdStart(LocalDate.of(2026, 11, 1));
 
 		assertEquals(ChallengeStatus.START_HELD, challenge.getStatus());
 		assertEquals(LocalDate.of(2026, 11, 1), challenge.getStartDate());
+		assertEquals(LocalDate.of(2026, 11, 1), challenge.getStartHeldOn());
 		assertEquals(1, challenge.getCurrentCount());
 		for (ChallengeStatus status : ChallengeStatus.values()) {
 			if (status == ChallengeStatus.RECRUITING) {
 				continue;
 			}
 			Challenge other = challenge(status, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 7));
-			BusinessException error = assertThrows(BusinessException.class, other::holdStart);
+			BusinessException error = assertThrows(BusinessException.class, () -> other.holdStart(LocalDate.of(2026, 11, 1)));
 			assertEquals(ChallengeErrorCode.NOT_STARTABLE, error.getErrorCode());
 			assertEquals(status, other.getStatus());
 		}
+	}
+
+	/**
+	 * 누락 보정: 예정 시작일 11/1의 배치를 놓쳐 11/2에 보류하면, 시작일은 11/1 그대로지만 보류한 날(11/2)에는 시작하지 않고
+	 * 11/3부터 시작할 수 있다. 추가 모집 마감은 예정 시작일 기준(11/3)이다.
+	 */
+	@Test
+	void lateHoldWaitsUntilDayAfterActualHold() {
+		Challenge challenge = challenge(ChallengeStatus.RECRUITING, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 7));
+
+		challenge.holdStart(LocalDate.of(2026, 11, 2));
+
+		assertEquals(LocalDate.of(2026, 11, 2), challenge.getStartHeldOn());
+		assertFalse(challenge.isStartDue(LocalDate.of(2026, 11, 2)));
+		assertTrue(challenge.isStartDue(LocalDate.of(2026, 11, 3)));
+		assertEquals(LocalDate.of(2026, 11, 3), challenge.recruitDeadlineDate());
+		BusinessException error = assertThrows(BusinessException.class, () -> challenge.start(LocalDate.of(2026, 11, 2)));
+		assertEquals(ChallengeErrorCode.NOT_STARTABLE, error.getErrorCode());
+	}
+
+	@Test
+	void rescheduleClearsHoldDay() {
+		Challenge challenge = challenge(ChallengeStatus.RECRUITING, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 7));
+		challenge.holdStart(LocalDate.of(2026, 11, 1));
+
+		challenge.reschedule(LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 7), java.time.Instant.parse("2026-11-02T00:00:00Z"));
+
+		assertEquals(null, challenge.getStartHeldOn());
 	}
 
 	/** 시작 예정 11/1, 인원 미달 → 11/3 23:59까지 추가 모집. */

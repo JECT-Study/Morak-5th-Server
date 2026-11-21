@@ -132,6 +132,26 @@ class StartChallengeIntegrationTest {
 		assertEquals(LocalDate.of(2026, 11, 12), date(challenge, "end_date"));
 	}
 
+	/** 누락 보정: 11/1 배치를 놓쳐 11/2에 보류하면 보류한 날을 저장하고, 11/2에 다시 돌려도 시작하지 않고 11/3에 시작한다. */
+	@Test
+	void lateHeldChallengeStartsFromDayAfterActualHold() {
+		long challenge = challenge("RECRUITING", NOV_1, NOV_1.plusDays(6), "PUBLIC");
+		members(challenge, 2);
+		LocalDate nov2 = LocalDate.of(2026, 11, 2);
+
+		assertEquals(new Summary(0, 1, 0, 0), service.runFor(nov2));
+		assertEquals(nov2, date(challenge, "start_held_on"));
+		assertEquals(NOV_1, date(challenge, "start_date"));
+
+		participation(challenge, 3L, "MEMBER", "ACTIVE");
+		assertEquals(new Summary(0, 0, 0, 0), service.runFor(nov2));
+		assertEquals("START_HELD", status(challenge));
+
+		assertEquals(new Summary(1, 0, 0, 0), service.runFor(LocalDate.of(2026, 11, 3)));
+		assertEquals("IN_PROGRESS", status(challenge));
+		assertEquals(LocalDate.of(2026, 11, 3), date(challenge, "start_date"));
+	}
+
 	@Test
 	void notificationFailureRollsBackOnlyThatChallenge() {
 		long failing = challenge("RECRUITING", NOV_1, NOV_1.plusDays(6), "PUBLIC");

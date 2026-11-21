@@ -143,6 +143,23 @@ class StartChallengeTransactionTest {
 		verifyNoInteractions(notice);
 	}
 
+	/** 누락 보정으로 11/2에 보류한 챌린지는 같은 날 인원이 차고 다시 돌려도 시작하지 않고, 11/3에 시작한다. */
+	@Test
+	void lateHeldChallengeDoesNotStartOnTheDayItWasHeld() {
+		Challenge challenge = given(ChallengeVisibility.PUBLIC, ChallengeStatus.RECRUITING, NOV_1, 2);
+		LocalDate nov2 = LocalDate.of(2026, 11, 2);
+		assertEquals(Outcome.HELD, transaction.process(CHALLENGE, nov2));
+		assertEquals(nov2, challenge.getStartHeldOn());
+
+		when(participants.countJoined(CHALLENGE)).thenReturn(3);
+		assertEquals(Outcome.UNCHANGED, transaction.process(CHALLENGE, nov2));
+		assertEquals(ChallengeStatus.START_HELD, challenge.getStatus());
+
+		assertEquals(Outcome.STARTED, transaction.process(CHALLENGE, LocalDate.of(2026, 11, 3)));
+		assertEquals(LocalDate.of(2026, 11, 3), challenge.getStartDate());
+		assertEquals(LocalDate.of(2026, 11, 9), challenge.getEndDate());
+	}
+
 	@Test
 	void missedChallengeBeforeDeadlineIsHeldWithNotice() {
 		given(ChallengeVisibility.PUBLIC, ChallengeStatus.RECRUITING, NOV_1, 2);

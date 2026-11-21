@@ -19,7 +19,7 @@ interface JpaChallengeRepository extends JpaRepository<Challenge, Long> {
 	@Query(value = """
 			SELECT id FROM {h-schema}challenge
 			WHERE deleted_at IS NULL AND id > :afterId
-			AND ((status = 'RECRUITING' AND start_date <= :today) OR (status = 'START_HELD' AND start_date < :today))
+			AND ((status = 'RECRUITING' AND start_date <= :today) OR (status = 'START_HELD' AND COALESCE(start_held_on, start_date) < :today))
 			ORDER BY id
 			LIMIT :limit
 			""", nativeQuery = true)

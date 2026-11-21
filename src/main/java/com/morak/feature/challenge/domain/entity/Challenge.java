@@ -60,6 +60,8 @@ public class Challenge extends BaseEntity {
 
 	private LocalDate startDate;
 	private LocalDate endDate;
+	/** 시작 보류로 바뀐 KST 날짜. 누락 보정으로 예정 시작일보다 늦게 보류될 수 있어 시작일과 따로 둔다(D-29). */
+	private LocalDate startHeldOn;
 	private int capacity;
 	private int currentCount;
 	@Column(name = "point_amount", nullable = false)
@@ -128,6 +130,7 @@ public class Challenge extends BaseEntity {
 		ChallengePeriod.validateStartDate(newStartDate, now);
 		this.startDate = newStartDate;
 		this.endDate = newEndDate;
+		this.startHeldOn = null;
 		this.status = ChallengeStatus.RECRUITING;
 	}
 
@@ -152,16 +155,24 @@ public class Challenge extends BaseEntity {
 
 	/**
 	 * 시작 처리 스케줄러가 평가할 수 있는 상태인지(위키 §4.9 ②).
-	 * 모집 중은 시작일이 오늘이거나 지났을 때(누락 보정 포함), 시작 보류는 보류된 다음 날부터다.
-	 * 보류된 당일에는 시작하지 않는다("연장 중 충족하면 다음 날 00:00 자동 시작").
+	 * 모집 중은 시작일이 오늘이거나 지났을 때(누락 보정 포함), 시작 보류는 실제로 보류된 날의 다음 날부터다.
+	 * 보류된 당일에는 시작하지 않는다("연장 중 충족하면 다음 날 00:00 자동 시작"). 누락 보정으로 시작일보다 늦게 보류됐어도
+	 * 보류한 날을 기준으로 한다.
 	 */
 	public boolean isStartDue(LocalDate today) {
 		return switch (status) {
 			case RECRUITING -> !startDate.isAfter(today);
-			case START_HELD -> startDate.isBefore(today);
+			case START_HELD -> heldOn().isBefore(today);
 			default -> false;
 		};
 	}
+
+	/** 보류한 날. 이 컬럼이 생기기 전에 보류된 챌린지는 값이 없으므로 예정 시작일에 보류된 것으로 본다. */
+	private LocalDate heldOn() {
+		return startHeldOn != null ? startHeldOn : startDate;
+	}
+
+	public LocalDate getStartHeldOn() { return startHeldOn; }
 
 	/**
 	 * 챌린지를 시작한다(위키 §4.2). 시작일은 시작되는 날로 바뀌고, 기간 길이는 유지한다(D-10):
@@ -179,13 +190,17 @@ public class Challenge extends BaseEntity {
 		this.status = ChallengeStatus.IN_PROGRESS;
 	}
 
-	/** 최소 인원 미달로 시작을 보류한다(위키 §4.2). 모집 중에서만 가능하고 참여 인원·정원·포인트는 그대로다. */
-	public void holdStart() {
+	/**
+	 * 최소 인원 미달로 시작을 보류한다(위키 §4.2). 모집 중에서만 가능하고 참여 인원·정원·포인트는 그대로다.
+	 * 보류한 날(today)을 기록한다. 추가 모집 마감은 여전히 예정 시작일 기준이다. TODO(D-29)
+	 */
+	public void holdStart(LocalDate today) {
 		if (status != ChallengeStatus.RECRUITING) {
 			log.warn("챌린지 상태 전이 거절: challengeId={}, from={}, to={}", id, status, ChallengeStatus.START_HELD);
 			throw new BusinessException(ChallengeErrorCode.NOT_STARTABLE);
 		}
 		this.status = ChallengeStatus.START_HELD;
+		this.startHeldOn = today;
 	}
 
 	/** 방장이 바뀐다(방장·부방장 승계). 참가자의 역할 변경은 참가 도메인이 한다. */
