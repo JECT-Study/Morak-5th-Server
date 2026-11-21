@@ -7,6 +7,7 @@ import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.policy.ChallengePeriod;
+import com.morak.feature.challenge.domain.policy.RecruitDeadline;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -17,7 +18,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -30,7 +30,6 @@ import org.hibernate.type.SqlTypes;
 public class Challenge extends BaseEntity {
 
 	private static final Logger log = LoggerFactory.getLogger(Challenge.class);
-	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	@Getter
 	@Id
@@ -152,12 +151,12 @@ public class Challenge extends BaseEntity {
 
 	/** 추가 모집 마감 날짜(예정 시작일을 1일째로 센 3일째, 시작일 + 2일). 그 날 23:59까지다. */
 	public LocalDate recruitDeadlineDate() {
-		return startDate.plusDays(2);
+		return RecruitDeadline.dateOf(startDate);
 	}
 
 	/** 추가 모집이 끝나는 시각. 마감일 다음 날 00:00 KST이며, 이 시각 전에 합류한 인원만 연장 중 충족으로 본다. */
 	public Instant recruitDeadlineEnd() {
-		return recruitDeadlineDate().plusDays(1).atStartOfDay(KST).toInstant();
+		return RecruitDeadline.endOf(startDate);
 	}
 
 	/**

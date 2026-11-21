@@ -11,6 +11,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -27,7 +28,7 @@ public class StartDueChallengesService {
 	private static final Logger log = LoggerFactory.getLogger(StartDueChallengesService.class);
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 	static final int PAGE_SIZE = 100;
-	/** 시작 처리 중 새 지원이 끼어들어 되돌린 경우 다시 시도하는 횟수(첫 시도 포함). TODO(D-29) */
+	/** 시작 처리 중 새 지원이 끼어들었거나 락 대기·데드락 같은 일시 오류로 되돌린 경우 다시 시도하는 횟수(첫 시도 포함). TODO(D-29) */
 	static final int MAX_ATTEMPTS = 3;
 
 	private final ChallengeRepository challenges;
@@ -89,18 +90,29 @@ public class StartDueChallengesService {
 		return summary;
 	}
 
-	/** 대기 신청 목록이 바뀌어 되돌려진 경우에만 다시 시도한다. 계정을 다시 잠그면 새 신청자도 포함된다. */
+	/**
+	 * 대기 신청 목록이 바뀌었거나(계정을 다시 잠그면 새 신청자도 포함된다) 락 대기·데드락 같은 일시 오류로 되돌려진 경우에만
+	 * 다시 시도한다. 그 밖의 오류는 바로 던져 실패로 센다. 실패한 챌린지는 다음 실행이 누락 보정으로 다시 처리한다.
+	 */
 	private Outcome processWithRetry(long challengeId, LocalDate today) {
 		for (int attempt = 1; ; attempt++) {
 			try {
 				return transaction.process(challengeId, today);
-			} catch (BusinessException exception) {
-				if (exception.getErrorCode() != ChallengeErrorCode.START_APPLICATIONS_CHANGED || attempt >= MAX_ATTEMPTS) {
+			} catch (RuntimeException exception) {
+				if (!retryable(exception) || attempt >= MAX_ATTEMPTS) {
 					throw exception;
 				}
-				log.warn("챌린지 시작 처리 재시도(대기 신청 변경): challengeId={}, attempt={}", challengeId, attempt);
+				log.warn("챌린지 시작 처리 재시도: challengeId={}, attempt={}, cause={}", challengeId, attempt,
+						exception.getClass().getSimpleName());
 			}
 		}
+	}
+
+	private static boolean retryable(RuntimeException exception) {
+		if (exception instanceof BusinessException business) {
+			return business.getErrorCode() == ChallengeErrorCode.START_APPLICATIONS_CHANGED;
+		}
+		return exception instanceof TransientDataAccessException;
 	}
 
 	public record Summary(int started, int held, int unchanged, int failed) {}

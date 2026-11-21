@@ -90,6 +90,17 @@ class StartDueChallengesServiceTest {
 	}
 
 	@Test
+	void retriesTransientLockFailures() {
+		when(challenges.findStartDueIds(TODAY, 0, 2)).thenReturn(List.of(1L));
+		when(transaction.process(1L, TODAY))
+				.thenThrow(new org.springframework.dao.CannotAcquireLockException("lock timeout"))
+				.thenReturn(Outcome.HELD);
+
+		assertEquals(new Summary(0, 1, 0, 0), service.runFor(TODAY));
+		verify(transaction, org.mockito.Mockito.times(2)).process(1L, TODAY);
+	}
+
+	@Test
 	void otherErrorsAreNotRetried() {
 		when(challenges.findStartDueIds(TODAY, 0, 2)).thenReturn(List.of(1L));
 		when(transaction.process(1L, TODAY)).thenThrow(new BusinessException(ChallengeErrorCode.START_INTEGRATION_UNAVAILABLE));
