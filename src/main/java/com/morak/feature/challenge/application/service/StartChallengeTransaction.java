@@ -51,11 +51,10 @@ public class StartChallengeTransaction {
 			return Outcome.UNCHANGED;
 		}
 		// 승인도 챌린지 행을 잠근 뒤 처리하므로, 잠근 뒤 센 인원은 그 사이 승인을 빠뜨리지 않는다.
-		// 시작 보류는 추가 모집 마감까지 합류한 인원만 센다. 배치가 늦어도 마감 전에 찼으면 시작하고, 마감 뒤에 찼으면 시작하지 않는다.
+		// 모집 중·시작 보류 모두 추가 모집이 끝나는 시각 전에 합류한 인원만 센다. 예정일 당일에는 그 시각이 아직 오지 않아
+		// 전체 합류 인원과 같다. 배치가 누락·지연돼도 마감 전에 찼으면 시작하고, 마감 뒤에 찼으면 시작하지 않는다.
 		// TODO(D-29): 합류 시각(joined_at)으로 마감 전 충족을 판단하는 것은 제안이다.
-		int joined = challenge.getStatus() == ChallengeStatus.START_HELD
-				? participants.countJoinedBefore(challengeId, challenge.recruitDeadlineEnd())
-				: participants.countJoined(challengeId);
+		int joined = participants.countJoinedBefore(challengeId, challenge.recruitDeadlineEnd());
 		if (challenge.hasEnoughMembers(joined)) {
 			challenge.start(today);
 			return Outcome.STARTED;

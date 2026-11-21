@@ -41,11 +41,4 @@ class ChallengeParticipationReaderAdapterTest {
 
 		assertEquals(2, adapter.countJoinedBefore(10L, cutoff));
 	}
-
-	@Test
-	void countJoinedDelegatesToParticipationCount() {
-		when(query.countJoined(10L)).thenReturn(3);
-
-		assertEquals(3, adapter.countJoined(10L));
-	}
 }

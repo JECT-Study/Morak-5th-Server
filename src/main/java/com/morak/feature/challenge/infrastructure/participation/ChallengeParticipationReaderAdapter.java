@@ -53,11 +53,6 @@ class ChallengeParticipationReaderAdapter implements ChallengeParticipationReade
 	}
 
 	@Override
-	public int countJoined(long challengeId) {
-		return participationQuery.countJoined(challengeId);
-	}
-
-	@Override
 	public int countJoinedBefore(long challengeId, Instant before) {
 		return (int) participationQuery.findParticipants(challengeId, JOINED_STATUSES).stream()
 				.filter(participant -> participant.joinedAt() != null && participant.joinedAt().isBefore(before))

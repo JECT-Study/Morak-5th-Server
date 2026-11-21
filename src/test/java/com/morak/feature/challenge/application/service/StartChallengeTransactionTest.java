@@ -112,7 +112,21 @@ class StartChallengeTransactionTest {
 		when(participants.countJoinedBefore(CHALLENGE, deadlineEnd)).thenReturn(3);
 		assertEquals(Outcome.STARTED, transaction.process(CHALLENGE, LocalDate.of(2026, 11, 6)));
 		assertEquals(LocalDate.of(2026, 11, 6), challenge.getStartDate());
-		verify(participants, never()).countJoined(CHALLENGE);
+	}
+
+	/**
+	 * 누락 보정: 11/1 예정 챌린지의 배치가 11/4까지 누락되고 11/4에 인원이 찬 경우, 11/5 배치는 마감(11/3) 뒤 충족이라
+	 * 시작하지 않고 보류만 한다. 마감이 지났으므로 알림 #4도 보내지 않는다.
+	 */
+	@Test
+	void missedRecruitingChallengeCountsOnlyMembersJoinedBeforeDeadline() {
+		Challenge challenge = given(ChallengeVisibility.PUBLIC, ChallengeStatus.RECRUITING, NOV_1, 3);
+		when(participants.countJoinedBefore(CHALLENGE, Instant.parse("2026-11-03T15:00:00Z"))).thenReturn(2);
+
+		assertEquals(Outcome.HELD, transaction.process(CHALLENGE, LocalDate.of(2026, 11, 5)));
+
+		assertEquals(ChallengeStatus.START_HELD, challenge.getStatus());
+		verifyNoInteractions(notice);
 	}
 
 	@Test
@@ -122,7 +136,7 @@ class StartChallengeTransactionTest {
 		assertEquals(Outcome.UNCHANGED, transaction.process(CHALLENGE, NOV_1));
 
 		assertEquals(ChallengeStatus.START_HELD, challenge.getStatus());
-		verify(participants, never()).countJoined(anyLong());
+		verify(participants, never()).countJoinedBefore(anyLong(), any(Instant.class));
 	}
 
 	/** 인원 충족이 시작일보다 일찍 → 예정 시작일에 시작. 그 전에는 건드리지 않는다. */
@@ -218,7 +232,6 @@ class StartChallengeTransactionTest {
 	}
 
 	private void joined(int count) {
-		when(participants.countJoined(CHALLENGE)).thenReturn(count);
 		when(participants.countJoinedBefore(eq(CHALLENGE), any(Instant.class))).thenReturn(count);
 	}
 }

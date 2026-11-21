@@ -178,6 +178,28 @@ class StartChallengeIntegrationTest {
 		assertEquals("START_HELD", status(filledLate));
 	}
 
+	/**
+	 * 누락 보정: 11/1 예정 챌린지의 배치가 11/4까지 누락된 경우, 11/5 배치는 마감(11/3 23:59:59 KST) 전에 찬 챌린지만 시작하고
+	 * 마감 뒤(11/4)에 찬 챌린지는 보류만 한다(기한이 지나 알림 #4 없음).
+	 */
+	@Test
+	void missedRecruitingBatchStartsOnlyChallengesFilledBeforeDeadline() {
+		long filledInTime = challenge("RECRUITING", NOV_1, NOV_1.plusDays(6), "PUBLIC");
+		members(filledInTime, 2);
+		participation(filledInTime, 3L, "MEMBER", "ACTIVE", Instant.parse("2026-11-02T03:00:00Z"));
+		long filledLate = challenge("RECRUITING", NOV_1, NOV_1.plusDays(6), "PUBLIC");
+		members(filledLate, 2);
+		participation(filledLate, 3L, "MEMBER", "ACTIVE", Instant.parse("2026-11-04T03:00:00Z"));
+
+		Summary summary = service.runFor(LocalDate.of(2026, 11, 5));
+
+		assertEquals(new Summary(1, 1, 0, 0), summary);
+		assertEquals("IN_PROGRESS", status(filledInTime));
+		assertEquals(LocalDate.of(2026, 11, 5), date(filledInTime, "start_date"));
+		assertEquals("START_HELD", status(filledLate));
+		assertEquals(0, count("SELECT count(*) FROM morak.notification WHERE type = 'START_HELD'"));
+	}
+
 	@Test
 	void notificationFailureRollsBackOnlyThatChallenge() {
 		long failing = challenge("RECRUITING", NOV_1, NOV_1.plusDays(6), "PUBLIC");
