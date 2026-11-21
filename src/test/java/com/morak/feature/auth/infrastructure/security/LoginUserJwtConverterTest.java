@@ -26,7 +26,7 @@ class LoginUserJwtConverterTest {
 
 	private final UserRepository repository = mock(UserRepository.class);
 	private final LoginUserJwtConverter converter =
-			new LoginUserJwtConverter(new AuthenticateUserService(new UserAuthAdapter(new UserService(repository))));
+			new LoginUserJwtConverter(new AuthenticateUserService(new UserAuthAdapter(new UserService(repository, userId -> {}))));
 
 	@ParameterizedTest
 	@NullSource

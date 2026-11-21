@@ -110,12 +110,21 @@ public class User extends BaseEntity {
 		if (!hasAgreedToTerms()) {
 			throw new BusinessException(UserErrorCode.TERMS_AGREEMENT_REQUIRED);
 		}
+		applyProfile(profile);
+		onboardedAt = now;
+	}
+
+	/** 온보딩 완료 여부는 SecurityConfig가 요청 단계에서 막는다. */
+	public void updateProfile(OnboardingProfile profile) {
+		applyProfile(profile);
+	}
+
+	private void applyProfile(OnboardingProfile profile) {
 		nickname = profile.nickname().value();
 		bio = profile.bio();
 		profileLinkUrl = profile.profileLinkUrl();
 		interests.clear();
 		profile.interests().stream().map(Interest::name).forEach(interests::add);
-		onboardedAt = now;
 	}
 
 	/**

@@ -81,4 +81,15 @@ public class UserController {
 				.cacheControl(CacheControl.noStore())
 				.body(ApiResponse.success(userService.completeOnboarding(new UserId(loginUser.userId().value()), request.toProfile())));
 	}
+
+	@PatchMapping("/me")
+	@Operation(summary = "프로필 수정",
+			description = "닉네임·한 줄 소개·관련 링크·관심 분야를 요청 값으로 바꿉니다. 소개·링크를 비우면 지워집니다. 프로필 사진은 포함하지 않습니다.")
+	@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+	public ResponseEntity<ApiResponse<MyUserInfo>> updateProfile(
+			@AuthenticationPrincipal LoginUser loginUser, @RequestBody OnboardingRequest request) {
+		return ResponseEntity.ok()
+				.cacheControl(CacheControl.noStore())
+				.body(ApiResponse.success(userService.updateProfile(new UserId(loginUser.userId().value()), request.toProfile())));
+	}
 }
