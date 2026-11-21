@@ -79,7 +79,7 @@ public class StartDueChallengesService {
 			if (ids.size() < pageSize) {
 				break;
 			}
-			afterId = ids.get(ids.size() - 1);
+			afterId = ids.getLast();
 		}
 		Summary summary = new Summary(started, held, unchanged, failed);
 		if (failed > 0) {

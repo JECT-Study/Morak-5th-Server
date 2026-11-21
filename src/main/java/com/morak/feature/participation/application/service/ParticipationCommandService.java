@@ -72,23 +72,20 @@ class ParticipationCommandService implements ParticipationCommand {
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Set<Long> lockPointAccountsForDiscard(long challengeId) {
-		Set<Long> userIds = new TreeSet<>();
-		for (Participation participation : participations.findDiscardableByChallenge(challengeId)) {
-			if (participation.isPointHeld()) {
-				userIds.add(participation.getUserId());
-			}
-		}
-		points.lockAccounts(userIds);
-		return userIds;
+		return lockPointAccounts(participations.findDiscardableByChallenge(challengeId));
 	}
 
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Set<Long> lockPendingPointAccounts(long challengeId) {
+		return lockPointAccounts(participations.findPendingByChallenge(challengeId));
+	}
+
+	private Set<Long> lockPointAccounts(List<Participation> targets) {
 		Set<Long> userIds = new TreeSet<>();
-		for (Participation pending : participations.findPendingByChallenge(challengeId)) {
-			if (pending.isPointHeld()) {
-				userIds.add(pending.getUserId());
+		for (Participation target : targets) {
+			if (target.isPointHeld()) {
+				userIds.add(target.getUserId());
 			}
 		}
 		points.lockAccounts(userIds);
@@ -103,11 +100,7 @@ class ParticipationCommandService implements ParticipationCommand {
 	@Transactional(propagation = Propagation.MANDATORY)
 	public List<RejectedApplication> rejectPendingOnStart(long challengeId, String challengeTitle, Set<Long> lockedUserIds) {
 		List<Participation> pending = participations.findPendingByChallengeForUpdate(challengeId);
-		for (Participation application : pending) {
-			if (application.isPointHeld() && !lockedUserIds.contains(application.getUserId())) {
-				throw new BusinessException(ParticipationErrorCode.PENDING_APPLICATIONS_CHANGED);
-			}
-		}
+		requireLockedPointAccounts(pending, lockedUserIds);
 		return pending.stream().map(application -> rejectOnStart(application, challengeId, challengeTitle)).toList();
 	}
 
@@ -128,12 +121,17 @@ class ParticipationCommandService implements ParticipationCommand {
 	public List<DiscardedParticipation> discardAll(
 			long challengeId, String challengeTitle, Set<Long> lockedUserIds, Instant now) {
 		List<Participation> targets = participations.findDiscardableByChallengeForUpdate(challengeId);
+		requireLockedPointAccounts(targets, lockedUserIds);
+		return targets.stream().map(target -> discard(target, challengeTitle, now)).toList();
+	}
+
+	/** 상태나 포인트를 바꾸기 전에 모든 대상의 계정 잠금을 확인한다. */
+	private static void requireLockedPointAccounts(List<Participation> targets, Set<Long> lockedUserIds) {
 		for (Participation target : targets) {
 			if (target.isPointHeld() && !lockedUserIds.contains(target.getUserId())) {
 				throw new BusinessException(ParticipationErrorCode.PENDING_APPLICATIONS_CHANGED);
 			}
 		}
-		return targets.stream().map(target -> discard(target, challengeTitle, now)).toList();
 	}
 
 	private DiscardedParticipation discard(Participation target, String challengeTitle, Instant now) {

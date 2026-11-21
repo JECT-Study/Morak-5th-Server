@@ -83,6 +83,10 @@ public class StartChallengeTransaction {
 		if (challenge.getStatus() == ChallengeStatus.START_HELD) {
 			return Outcome.UNCHANGED;
 		}
+		return holdStart(challengeId, challenge, today);
+	}
+
+	private Outcome holdStart(long challengeId, Challenge challenge, LocalDate today) {
 		challenge.holdStart(today);
 		LocalDate deadline = challenge.recruitDeadlineDate();
 		if (deadline.isBefore(today)) {
