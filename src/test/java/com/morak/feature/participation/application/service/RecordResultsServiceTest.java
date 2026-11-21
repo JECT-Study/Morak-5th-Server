@@ -33,7 +33,8 @@ class RecordResultsServiceTest {
 	private final ParticipationRepository participations = mock(ParticipationRepository.class);
 	private final ParticipationResultRepository results = mock(ParticipationResultRepository.class);
 	private final ParticipationCommandService service = new ParticipationCommandService(
-			participations, results, mock(ApplicationChallenges.class), mock(ApplicantPoints.class));
+			participations, results, mock(ApplicationChallenges.class), mock(ApplicantPoints.class),
+			mock(com.morak.feature.participation.application.port.out.ApplicationNotifier.class));
 
 	@Test
 	void savesResultForActiveParticipantWithChallengeAndUserFromTheRow() {

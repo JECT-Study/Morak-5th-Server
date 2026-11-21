@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.morak.common.exception.BusinessException;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.challenge.application.port.out.ChallengeStartHeldNotice;
 import com.morak.feature.challenge.application.service.StartChallengeTransaction.Outcome;
@@ -25,6 +26,7 @@ import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /** 위키 §4.2 시작 처리, §7 시작·보류 표. 합류 인원은 승인 대기를 뺀 값이 포트에서 온다. */
@@ -37,8 +39,9 @@ class StartChallengeTransactionTest {
 	private final ChallengeRepository challenges = mock(ChallengeRepository.class);
 	private final ChallengeParticipationReader participants = mock(ChallengeParticipationReader.class);
 	private final ChallengeStartHeldNotice notice = mock(ChallengeStartHeldNotice.class);
+	private final ChallengeParticipation participations = mock(ChallengeParticipation.class);
 	private final StartChallengeTransaction transaction =
-			new StartChallengeTransaction(challenges, participants, Optional.of(notice));
+			new StartChallengeTransaction(challenges, participants, Optional.of(participations), Optional.of(notice));
 
 	@Test
 	void publicWithThreeJoinedStarts() {
@@ -168,6 +171,66 @@ class StartChallengeTransactionTest {
 		verifyNoInteractions(notice);
 	}
 
+	/** 위키 O-21(PM 확정): 시작하면 남은 승인 대기 신청을 거절하고 포인트를 돌려준다. 포인트 계정은 챌린지보다 먼저 잠근다. */
+	@Test
+	void startRejectsPendingApplicationsAfterLockingTheirAccountsFirst() {
+		Challenge challenge = given(ChallengeVisibility.PUBLIC, ChallengeStatus.RECRUITING, NOV_1, 3, 1_000);
+		when(participations.lockPendingPointAccounts(CHALLENGE)).thenReturn(Set.of(7L, 8L));
+		when(participations.rejectPendingOnStart(CHALLENGE, "아침 독서", Set.of(7L, 8L))).thenReturn(2);
+
+		assertEquals(Outcome.STARTED, transaction.process(CHALLENGE, NOV_1));
+
+		assertEquals(ChallengeStatus.IN_PROGRESS, challenge.getStatus());
+		var order = org.mockito.Mockito.inOrder(participations, challenges);
+		order.verify(participations).lockPendingPointAccounts(CHALLENGE);
+		order.verify(challenges).findByIdForUpdate(CHALLENGE);
+		order.verify(participations).rejectPendingOnStart(CHALLENGE, "아침 독서", Set.of(7L, 8L));
+	}
+
+	@Test
+	void challengeWithoutPointsLocksNoAccountsButStillRejectsPending() {
+		given(ChallengeVisibility.PUBLIC, ChallengeStatus.RECRUITING, NOV_1, 3, 0);
+
+		assertEquals(Outcome.STARTED, transaction.process(CHALLENGE, NOV_1));
+
+		verify(participations, never()).lockPendingPointAccounts(anyLong());
+		verify(participations).rejectPendingOnStart(CHALLENGE, "아침 독서", Set.of());
+	}
+
+	@Test
+	void holdKeepsPendingApplicationsForExtraRecruiting() {
+		given(ChallengeVisibility.PUBLIC, ChallengeStatus.RECRUITING, NOV_1, 2, 1_000);
+
+		assertEquals(Outcome.HELD, transaction.process(CHALLENGE, NOV_1));
+
+		verify(participations, never()).rejectPendingOnStart(anyLong(), any(), any());
+	}
+
+	@Test
+	void stateChangedWhileLockingIsSkippedWithoutRejecting() {
+		Challenge due = given(ChallengeVisibility.PUBLIC, ChallengeStatus.RECRUITING, NOV_1, 3, 1_000);
+		Challenge discarded = new Challenge(HOST, "아침 독서", ChallengeVisibility.PUBLIC, ChallengeCategory.STUDY, "소개",
+				null, "미션", "규칙", null, "123456", NOV_1, NOV_1.plusDays(6), 5, 1_000, null);
+		org.springframework.test.util.ReflectionTestUtils.setField(discarded, "status", ChallengeStatus.DISCARDED);
+		when(challenges.findByIdForUpdate(CHALLENGE)).thenReturn(Optional.of(discarded));
+
+		assertEquals(Outcome.UNCHANGED, transaction.process(CHALLENGE, NOV_1));
+
+		assertEquals(ChallengeStatus.RECRUITING, due.getStatus());
+		verify(participations, never()).rejectPendingOnStart(anyLong(), any(), any());
+	}
+
+	@Test
+	void missingParticipationPortFailsWith503() {
+		given(ChallengeVisibility.PUBLIC, ChallengeStatus.RECRUITING, NOV_1, 3);
+		StartChallengeTransaction withoutPort =
+				new StartChallengeTransaction(challenges, participants, Optional.empty(), Optional.of(notice));
+
+		BusinessException error = assertThrows(BusinessException.class, () -> withoutPort.process(CHALLENGE, NOV_1));
+
+		assertEquals(ChallengeErrorCode.START_INTEGRATION_UNAVAILABLE, error.getErrorCode());
+	}
+
 	/** 누락 보정: 마감(시작일+2일)이 이미 지났으면 보류만 하고 알림 #4는 보내지 않는다. */
 	@Test
 	void missedChallengeWhoseDeadlinePassedIsHeldWithoutNotice() {
@@ -207,7 +270,8 @@ class StartChallengeTransactionTest {
 
 	@Test
 	void missingNoticePortFailsOnlyWhenHolding() {
-		StartChallengeTransaction withoutNotice = new StartChallengeTransaction(challenges, participants, Optional.empty());
+		StartChallengeTransaction withoutNotice =
+				new StartChallengeTransaction(challenges, participants, Optional.of(participations), Optional.empty());
 		given(ChallengeVisibility.PUBLIC, ChallengeStatus.RECRUITING, NOV_1, 3);
 		assertEquals(Outcome.STARTED, withoutNotice.process(CHALLENGE, NOV_1));
 
@@ -217,8 +281,13 @@ class StartChallengeTransactionTest {
 	}
 
 	private Challenge given(ChallengeVisibility visibility, ChallengeStatus status, LocalDate start, int joined) {
+		return given(visibility, status, start, joined, 0);
+	}
+
+	private Challenge given(ChallengeVisibility visibility, ChallengeStatus status, LocalDate start, int joined,
+			int pointAmount) {
 		Challenge challenge = new Challenge(HOST, "아침 독서", visibility, ChallengeCategory.STUDY, "소개", null,
-				"미션", "규칙", null, "123456", start, start.plusDays(6), 5, 0, null);
+				"미션", "규칙", null, "123456", start, start.plusDays(6), 5, pointAmount, null);
 		try {
 			Field field = Challenge.class.getDeclaredField("status");
 			field.setAccessible(true);
@@ -226,6 +295,7 @@ class StartChallengeTransactionTest {
 		} catch (ReflectiveOperationException e) {
 			throw new IllegalStateException(e);
 		}
+		when(challenges.findById(CHALLENGE)).thenReturn(Optional.of(challenge));
 		when(challenges.findByIdForUpdate(CHALLENGE)).thenReturn(Optional.of(challenge));
 		joined(joined);
 		return challenge;

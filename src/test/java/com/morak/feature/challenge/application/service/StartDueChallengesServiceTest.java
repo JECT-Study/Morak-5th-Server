@@ -9,7 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.service.StartChallengeTransaction.Outcome;
+import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.application.service.StartDueChallengesService.Summary;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
 import java.time.Clock;
@@ -65,6 +67,35 @@ class StartDueChallengesServiceTest {
 
 		assertEquals(new Summary(1, 0, 0, 1), bigger.runFor(TODAY));
 		verify(challenges, never()).findStartDueIds(eq(TODAY), anyLong(), eq(4));
+	}
+
+	@Test
+	void retriesWhenPendingApplicationsChangedDuringStart() {
+		when(challenges.findStartDueIds(TODAY, 0, 2)).thenReturn(List.of(1L));
+		when(transaction.process(1L, TODAY))
+				.thenThrow(new BusinessException(ChallengeErrorCode.START_APPLICATIONS_CHANGED))
+				.thenReturn(Outcome.STARTED);
+
+		assertEquals(new Summary(1, 0, 0, 0), service.runFor(TODAY));
+		verify(transaction, org.mockito.Mockito.times(2)).process(1L, TODAY);
+	}
+
+	@Test
+	void givesUpAfterMaxAttemptsAndCountsFailure() {
+		when(challenges.findStartDueIds(TODAY, 0, 2)).thenReturn(List.of(1L));
+		when(transaction.process(1L, TODAY)).thenThrow(new BusinessException(ChallengeErrorCode.START_APPLICATIONS_CHANGED));
+
+		assertEquals(new Summary(0, 0, 0, 1), service.runFor(TODAY));
+		verify(transaction, org.mockito.Mockito.times(StartDueChallengesService.MAX_ATTEMPTS)).process(1L, TODAY);
+	}
+
+	@Test
+	void otherErrorsAreNotRetried() {
+		when(challenges.findStartDueIds(TODAY, 0, 2)).thenReturn(List.of(1L));
+		when(transaction.process(1L, TODAY)).thenThrow(new BusinessException(ChallengeErrorCode.START_INTEGRATION_UNAVAILABLE));
+
+		assertEquals(new Summary(0, 0, 0, 1), service.runFor(TODAY));
+		verify(transaction, org.mockito.Mockito.times(1)).process(1L, TODAY);
 	}
 
 	@Test

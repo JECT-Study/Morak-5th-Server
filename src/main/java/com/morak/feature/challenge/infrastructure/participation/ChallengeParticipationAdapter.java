@@ -39,6 +39,24 @@ class ChallengeParticipationAdapter implements ChallengeParticipation {
 	}
 
 	@Override
+	public Set<Long> lockPendingPointAccounts(long challengeId) {
+		return participationCommand.lockPendingPointAccounts(challengeId);
+	}
+
+	@Override
+	public int rejectPendingOnStart(long challengeId, String challengeTitle, Set<Long> lockedUserIds) {
+		try {
+			return participationCommand.rejectPendingOnStart(challengeId, challengeTitle, lockedUserIds).size();
+		} catch (BusinessException exception) {
+			if (exception.getErrorCode() == ParticipationErrorCode.PENDING_APPLICATIONS_CHANGED) {
+				// 챌린지 쪽은 참가 도메인 오류 코드를 모르게, 다시 시도할 수 있는 시작 처리 오류로 바꿔 넘긴다.
+				throw new BusinessException(ChallengeErrorCode.START_APPLICATIONS_CHANGED);
+			}
+			throw exception;
+		}
+	}
+
+	@Override
 	public List<DiscardedParticipant> discardAll(
 			long challengeId, String challengeTitle, Set<Long> lockedUserIds, Instant now) {
 		try {

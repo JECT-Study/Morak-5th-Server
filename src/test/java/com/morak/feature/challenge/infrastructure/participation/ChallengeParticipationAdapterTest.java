@@ -38,6 +38,31 @@ class ChallengeParticipationAdapterTest {
 	}
 
 	@Test
+	void delegatesStartRejectionAndReturnsCount() {
+		when(command.lockPendingPointAccounts(10L)).thenReturn(java.util.Set.of(3L));
+		when(command.rejectPendingOnStart(10L, "아침 독서", java.util.Set.of(3L))).thenReturn(List.of(
+				new ParticipationCommand.RejectedApplication(101L, 3L, 1_000),
+				new ParticipationCommand.RejectedApplication(102L, 4L, 0)));
+
+		assertEquals(java.util.Set.of(3L), adapter.lockPendingPointAccounts(10L));
+		assertEquals(2, adapter.rejectPendingOnStart(10L, "아침 독서", java.util.Set.of(3L)));
+	}
+
+	@Test
+	void mapsChangedApplicationsDuringStartToChallengeError() {
+		when(command.rejectPendingOnStart(10L, "아침 독서", java.util.Set.of())).thenThrow(
+				new com.morak.common.exception.BusinessException(
+						com.morak.feature.participation.domain.exception.ParticipationErrorCode.PENDING_APPLICATIONS_CHANGED));
+
+		com.morak.common.exception.BusinessException error = org.junit.jupiter.api.Assertions.assertThrows(
+				com.morak.common.exception.BusinessException.class,
+				() -> adapter.rejectPendingOnStart(10L, "아침 독서", java.util.Set.of()));
+
+		assertEquals(com.morak.feature.challenge.domain.exception.ChallengeErrorCode.START_APPLICATIONS_CHANGED,
+				error.getErrorCode());
+	}
+
+	@Test
 	void keepsEmptyWhenPointsAreInvolved() {
 		when(command.invalidatePendingWithoutPoints(7L)).thenReturn(Optional.empty());
 

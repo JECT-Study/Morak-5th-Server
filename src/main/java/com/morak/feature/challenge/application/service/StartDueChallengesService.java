@@ -1,6 +1,8 @@
 package com.morak.feature.challenge.application.service;
 
+import com.morak.common.exception.BusinessException;
 import com.morak.feature.challenge.application.service.StartChallengeTransaction.Outcome;
+import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -25,6 +27,8 @@ public class StartDueChallengesService {
 	private static final Logger log = LoggerFactory.getLogger(StartDueChallengesService.class);
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 	static final int PAGE_SIZE = 100;
+	/** 시작 처리 중 새 지원이 끼어들어 되돌린 경우 다시 시도하는 횟수(첫 시도 포함). TODO(D-29) */
+	static final int MAX_ATTEMPTS = 3;
 
 	private final ChallengeRepository challenges;
 	private final StartChallengeTransaction transaction;
@@ -60,7 +64,7 @@ public class StartDueChallengesService {
 			List<Long> ids = challenges.findStartDueIds(today, afterId, pageSize);
 			for (long challengeId : ids) {
 				try {
-					Outcome outcome = transaction.process(challengeId, today);
+					Outcome outcome = processWithRetry(challengeId, today);
 					switch (outcome) {
 						case STARTED -> started++;
 						case HELD -> held++;
@@ -83,6 +87,20 @@ public class StartDueChallengesService {
 			log.info("챌린지 시작 처리 완료: today={}, {}", today, summary);
 		}
 		return summary;
+	}
+
+	/** 대기 신청 목록이 바뀌어 되돌려진 경우에만 다시 시도한다. 계정을 다시 잠그면 새 신청자도 포함된다. */
+	private Outcome processWithRetry(long challengeId, LocalDate today) {
+		for (int attempt = 1; ; attempt++) {
+			try {
+				return transaction.process(challengeId, today);
+			} catch (BusinessException exception) {
+				if (exception.getErrorCode() != ChallengeErrorCode.START_APPLICATIONS_CHANGED || attempt >= MAX_ATTEMPTS) {
+					throw exception;
+				}
+				log.warn("챌린지 시작 처리 재시도(대기 신청 변경): challengeId={}, attempt={}", challengeId, attempt);
+			}
+		}
 	}
 
 	public record Summary(int started, int held, int unchanged, int failed) {}
