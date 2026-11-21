@@ -31,6 +31,18 @@ class ChallengeParticipationReaderAdapterTest {
 	}
 
 	@Test
+	void countJoinedBeforeCountsOnlyMembersJoinedBeforeCutoff() {
+		Instant cutoff = Instant.parse("2026-11-03T15:00:00Z");
+		when(query.findParticipants(10L, Set.of("ACTIVE", "EXPEL_NOTICED"))).thenReturn(List.of(
+				new ParticipantSummary(100L, 1L, "HOST", "ACTIVE", cutoff.minusSeconds(86_400)),
+				new ParticipantSummary(101L, 2L, "DEPUTY", "ACTIVE", cutoff.minusNanos(1_000)),
+				new ParticipantSummary(102L, 3L, "MEMBER", "ACTIVE", cutoff),
+				new ParticipantSummary(103L, 4L, "MEMBER", "ACTIVE", null)));
+
+		assertEquals(2, adapter.countJoinedBefore(10L, cutoff));
+	}
+
+	@Test
 	void countJoinedDelegatesToParticipationCount() {
 		when(query.countJoined(10L)).thenReturn(3);
 

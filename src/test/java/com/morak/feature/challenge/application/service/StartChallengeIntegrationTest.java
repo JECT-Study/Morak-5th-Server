@@ -8,7 +8,10 @@ import static org.mockito.Mockito.reset;
 import com.morak.feature.challenge.application.service.StartDueChallengesService.Summary;
 import com.morak.feature.notification.application.dto.NotifyCommand;
 import com.morak.feature.notification.application.service.NotificationService;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -152,6 +155,29 @@ class StartChallengeIntegrationTest {
 		assertEquals(LocalDate.of(2026, 11, 3), date(challenge, "start_date"));
 	}
 
+	/**
+	 * 11/1 예정(마감 11/3 23:59:59 KST) 보류 챌린지의 11/4 배치가 누락된 경우. 11/6 배치는 마감 전에 찬 챌린지만 시작하고,
+	 * 마감 뒤(11/5)에 찬 챌린지는 시작하지 않는다.
+	 */
+	@Test
+	void lateBatchStartsOnlyChallengesFilledBeforeDeadline() {
+		long filledInTime = challenge("RECRUITING", NOV_1, NOV_1.plusDays(6), "PUBLIC");
+		members(filledInTime, 2);
+		long filledLate = challenge("RECRUITING", NOV_1, NOV_1.plusDays(6), "PUBLIC");
+		members(filledLate, 2);
+		service.runFor(NOV_1);
+		// 11/3 23:59 KST 승인 vs 11/5 10:00 KST 승인
+		participation(filledInTime, 3L, "MEMBER", "ACTIVE", Instant.parse("2026-11-03T14:59:00Z"));
+		participation(filledLate, 3L, "MEMBER", "ACTIVE", Instant.parse("2026-11-05T01:00:00Z"));
+
+		Summary summary = service.runFor(LocalDate.of(2026, 11, 6));
+
+		assertEquals(new Summary(1, 0, 1, 0), summary);
+		assertEquals("IN_PROGRESS", status(filledInTime));
+		assertEquals(LocalDate.of(2026, 11, 6), date(filledInTime, "start_date"));
+		assertEquals("START_HELD", status(filledLate));
+	}
+
 	@Test
 	void notificationFailureRollsBackOnlyThatChallenge() {
 		long failing = challenge("RECRUITING", NOV_1, NOV_1.plusDays(6), "PUBLIC");
@@ -234,16 +260,22 @@ class StartChallengeIntegrationTest {
 		}
 	}
 
+	/** 합류 시각은 테스트 날짜(2026-11)보다 앞선 값으로 둔다. 마감 판단에 쓰이므로 필요한 테스트는 시각을 직접 준다. */
 	private void participation(long challenge, long userId, String role, String status) {
+		participation(challenge, userId, role, status, Instant.parse("2026-10-01T00:00:00Z"));
+	}
+
+	private void participation(long challenge, long userId, String role, String status, Instant joinedAt) {
 		jdbc.sql("""
 				INSERT INTO morak.participation (challenge_id, user_id, role, status, point_status, deposit_amount,
 												applied_at, joined_at)
-				VALUES (:challenge, :user, :role, :status, 'NONE', 0, now(), now())
+				VALUES (:challenge, :user, :role, :status, 'NONE', 0, :joinedAt, :joinedAt)
 				""")
 				.param("challenge", challenge)
 				.param("user", userId)
 				.param("role", role)
 				.param("status", status)
+				.param("joinedAt", LocalDateTime.ofInstant(joinedAt, ZoneOffset.UTC))
 				.update();
 	}
 

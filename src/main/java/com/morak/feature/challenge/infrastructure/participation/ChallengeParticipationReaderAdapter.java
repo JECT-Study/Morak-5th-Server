@@ -3,6 +3,7 @@ package com.morak.feature.challenge.infrastructure.participation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.participation.application.query.ParticipationQuery;
 import com.morak.feature.participation.application.query.ParticipationQuery.MyParticipation;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -13,6 +14,8 @@ class ChallengeParticipationReaderAdapter implements ChallengeParticipationReade
 
 	private static final Set<String> WAITING_STATUSES = Set.of("ACTIVE", "PENDING");
 	private static final String HOST_ROLE = "HOST";
+	/** {@code ParticipationQuery.countJoined}와 같은 합류 상태. */
+	private static final Set<String> JOINED_STATUSES = Set.of("ACTIVE", "EXPEL_NOTICED");
 
 	private final ParticipationQuery participationQuery;
 
@@ -52,6 +55,13 @@ class ChallengeParticipationReaderAdapter implements ChallengeParticipationReade
 	@Override
 	public int countJoined(long challengeId) {
 		return participationQuery.countJoined(challengeId);
+	}
+
+	@Override
+	public int countJoinedBefore(long challengeId, Instant before) {
+		return (int) participationQuery.findParticipants(challengeId, JOINED_STATUSES).stream()
+				.filter(participant -> participant.joinedAt() != null && participant.joinedAt().isBefore(before))
+				.count();
 	}
 
 	private MyParticipationRow toRow(MyParticipation participation) {

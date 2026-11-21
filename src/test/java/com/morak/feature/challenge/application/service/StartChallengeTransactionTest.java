@@ -2,7 +2,9 @@ package com.morak.feature.challenge.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -20,6 +22,7 @@ import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
 import java.lang.reflect.Field;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -93,6 +96,25 @@ class StartChallengeTransactionTest {
 		assertEquals(LocalDate.of(2026, 11, 12), challenge.getEndDate());
 	}
 
+	/**
+	 * 11/1 예정(마감 11/3)인 보류 챌린지의 11/4 배치가 누락되고 11/5에 인원이 찬 경우, 11/6 배치는 마감 뒤 충족이라 시작하지 않는다.
+	 * 마감 전에 찼다면 배치가 늦었어도 시작한다. 마감 끝 시각은 11/4 00:00 KST다.
+	 */
+	@Test
+	void heldChallengeCountsOnlyMembersJoinedBeforeDeadline() {
+		Challenge challenge = given(ChallengeVisibility.PUBLIC, ChallengeStatus.START_HELD, NOV_1, 3);
+		Instant deadlineEnd = Instant.parse("2026-11-03T15:00:00Z");
+		when(participants.countJoinedBefore(CHALLENGE, deadlineEnd)).thenReturn(2);
+
+		assertEquals(Outcome.UNCHANGED, transaction.process(CHALLENGE, LocalDate.of(2026, 11, 6)));
+		assertEquals(ChallengeStatus.START_HELD, challenge.getStatus());
+
+		when(participants.countJoinedBefore(CHALLENGE, deadlineEnd)).thenReturn(3);
+		assertEquals(Outcome.STARTED, transaction.process(CHALLENGE, LocalDate.of(2026, 11, 6)));
+		assertEquals(LocalDate.of(2026, 11, 6), challenge.getStartDate());
+		verify(participants, never()).countJoined(CHALLENGE);
+	}
+
 	@Test
 	void heldChallengeIsNotStartedOnTheDayItWasHeld() {
 		Challenge challenge = given(ChallengeVisibility.PUBLIC, ChallengeStatus.START_HELD, NOV_1, 3);
@@ -151,7 +173,7 @@ class StartChallengeTransactionTest {
 		assertEquals(Outcome.HELD, transaction.process(CHALLENGE, nov2));
 		assertEquals(nov2, challenge.getStartHeldOn());
 
-		when(participants.countJoined(CHALLENGE)).thenReturn(3);
+		joined(3);
 		assertEquals(Outcome.UNCHANGED, transaction.process(CHALLENGE, nov2));
 		assertEquals(ChallengeStatus.START_HELD, challenge.getStatus());
 
@@ -191,7 +213,12 @@ class StartChallengeTransactionTest {
 			throw new IllegalStateException(e);
 		}
 		when(challenges.findByIdForUpdate(CHALLENGE)).thenReturn(Optional.of(challenge));
-		when(participants.countJoined(CHALLENGE)).thenReturn(joined);
+		joined(joined);
 		return challenge;
+	}
+
+	private void joined(int count) {
+		when(participants.countJoined(CHALLENGE)).thenReturn(count);
+		when(participants.countJoinedBefore(eq(CHALLENGE), any(Instant.class))).thenReturn(count);
 	}
 }

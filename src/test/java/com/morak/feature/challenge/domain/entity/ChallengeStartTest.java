@@ -140,6 +140,14 @@ class ChallengeStartTest {
 	}
 
 	@Test
+	void recruitDeadlineEndsAtMidnightKstAfterDeadlineDay() {
+		Challenge challenge = challenge(ChallengeStatus.START_HELD, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 7));
+
+		// 11/3 23:59:59 KST까지가 추가 모집이고, 11/4 00:00 KST(= 11/3 15:00 UTC)에 끝난다.
+		assertEquals(java.time.Instant.parse("2026-11-03T15:00:00Z"), challenge.recruitDeadlineEnd());
+	}
+
+	@Test
 	void minimumMembersArePublicThreeAndPrivateTwo() {
 		Challenge publicChallenge = challenge(ChallengeStatus.RECRUITING, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 7));
 		Challenge privateChallenge = challenge(ChallengeVisibility.PRIVATE, ChallengeStatus.RECRUITING,
