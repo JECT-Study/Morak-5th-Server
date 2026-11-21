@@ -17,6 +17,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.slf4j.Logger;
@@ -137,6 +138,54 @@ public class Challenge extends BaseEntity {
 	public void discard() {
 		requireStartHeld(ChallengeStatus.DISCARDED);
 		status = ChallengeStatus.DISCARDED;
+	}
+
+	/** 최소 인원(공개 3 / 비공개 2, 방장 포함)을 채웠는지. 승인 대기는 세지 않은 합류 인원을 받는다. */
+	public boolean hasEnoughMembers(int joinedCount) {
+		return joinedCount >= visibility.minParticipants();
+	}
+
+	/** 추가 모집 마감 날짜(예정 시작일을 1일째로 센 3일째, 시작일 + 2일). 그 날 23:59까지다. */
+	public LocalDate recruitDeadlineDate() {
+		return startDate.plusDays(2);
+	}
+
+	/**
+	 * 시작 처리 스케줄러가 평가할 수 있는 상태인지(위키 §4.9 ②).
+	 * 모집 중은 시작일이 오늘이거나 지났을 때(누락 보정 포함), 시작 보류는 보류된 다음 날부터다.
+	 * 보류된 당일에는 시작하지 않는다("연장 중 충족하면 다음 날 00:00 자동 시작").
+	 */
+	public boolean isStartDue(LocalDate today) {
+		return switch (status) {
+			case RECRUITING -> !startDate.isAfter(today);
+			case START_HELD -> startDate.isBefore(today);
+			default -> false;
+		};
+	}
+
+	/**
+	 * 챌린지를 시작한다(위키 §4.2). 시작일은 시작되는 날로 바뀌고, 기간 길이는 유지한다(D-10):
+	 * {@code end_date = today + (원래 일수 - 1)}. 예정일 당일 시작은 날짜가 그대로고, 연장 중 시작·누락 보정은 밀린다.
+	 * 참여 인원·참가자 상태는 건드리지 않는다. TODO(D-28): 누락 보정에도 같은 식을 쓰는 것은 제안이다.
+	 */
+	public void start(LocalDate today) {
+		if (!isStartDue(today)) {
+			log.warn("챌린지 시작 거절: challengeId={}, status={}, startDate={}, today={}", id, status, startDate, today);
+			throw new BusinessException(ChallengeErrorCode.NOT_STARTABLE);
+		}
+		long daysAfterStart = ChronoUnit.DAYS.between(startDate, endDate);
+		this.startDate = today;
+		this.endDate = today.plusDays(daysAfterStart);
+		this.status = ChallengeStatus.IN_PROGRESS;
+	}
+
+	/** 최소 인원 미달로 시작을 보류한다(위키 §4.2). 모집 중에서만 가능하고 참여 인원·정원·포인트는 그대로다. */
+	public void holdStart() {
+		if (status != ChallengeStatus.RECRUITING) {
+			log.warn("챌린지 상태 전이 거절: challengeId={}, from={}, to={}", id, status, ChallengeStatus.START_HELD);
+			throw new BusinessException(ChallengeErrorCode.NOT_STARTABLE);
+		}
+		this.status = ChallengeStatus.START_HELD;
 	}
 
 	/** 방장이 바뀐다(방장·부방장 승계). 참가자의 역할 변경은 참가 도메인이 한다. */

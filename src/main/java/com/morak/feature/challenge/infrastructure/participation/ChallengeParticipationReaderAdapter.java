@@ -49,6 +49,11 @@ class ChallengeParticipationReaderAdapter implements ChallengeParticipationReade
 				.toList();
 	}
 
+	@Override
+	public int countJoined(long challengeId) {
+		return participationQuery.countJoined(challengeId);
+	}
+
 	private MyParticipationRow toRow(MyParticipation participation) {
 		return new MyParticipationRow(participation.participationId(), participation.challengeId(), participation.role(),
 				participation.status());

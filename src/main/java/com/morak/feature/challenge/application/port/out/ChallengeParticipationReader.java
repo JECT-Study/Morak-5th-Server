@@ -21,6 +21,9 @@ public interface ChallengeParticipationReader {
 	/** 시작 대기 중인 참가자(승인된 참여자와 승인 대기 신청자)에서 방장을 뺀 목록. 기간 재설정 알림 대상이다. */
 	List<WaitingParticipant> findWaitingParticipants(long challengeId);
 
+	/** 실제 합류한 인원(방장 포함, 승인 대기 제외). 시작 처리의 최소 인원 판단에 쓴다. */
+	int countJoined(long challengeId);
+
 	record WaitingParticipant(long participationId, long userId) {}
 
 	/** 내 챌린지 목록에 필요한 참가 정보. role, status는 위키 §5 enum 문자열 그대로다. */

@@ -21,7 +21,9 @@ public enum ChallengeErrorCode implements ErrorCode {
 	NOT_OWNER(HttpStatus.FORBIDDEN, "방장만 처리할 수 있습니다."),
 	NOT_START_HELD(HttpStatus.CONFLICT, "시작 보류 중인 챌린지만 처리할 수 있습니다."),
 	DISCARD_APPLICATIONS_CHANGED(HttpStatus.CONFLICT, "폐기하는 동안 참가 신청이 바뀌었습니다. 다시 시도해 주세요."),
-	DISCARD_INTEGRATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "챌린지 폐기 기능을 준비 중입니다.");
+	DISCARD_INTEGRATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "챌린지 폐기 기능을 준비 중입니다."),
+	NOT_STARTABLE(HttpStatus.CONFLICT, "시작할 수 없는 상태의 챌린지입니다."),
+	START_INTEGRATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "챌린지 시작 처리 기능을 준비 중입니다.");
 
 	private final HttpStatus status;
 	private final String message;

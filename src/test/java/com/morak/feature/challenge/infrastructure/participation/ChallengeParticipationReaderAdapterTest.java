@@ -29,4 +29,11 @@ class ChallengeParticipationReaderAdapterTest {
 
 		assertEquals(List.of(new WaitingParticipant(101, 2), new WaitingParticipant(102, 3)), result);
 	}
+
+	@Test
+	void countJoinedDelegatesToParticipationCount() {
+		when(query.countJoined(10L)).thenReturn(3);
+
+		assertEquals(3, adapter.countJoined(10L));
+	}
 }
