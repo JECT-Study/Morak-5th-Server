@@ -12,7 +12,8 @@ public enum PointErrorCode implements ErrorCode {
 	IDEMPOTENCY_KEY_CONFLICT("POINT_006", "같은 키로 다른 내용의 포인트 거래가 이미 처리되었습니다.", HttpStatus.CONFLICT),
 	DEPOSIT_NOT_FOUND("POINT_007", "환급할 보증금 납부 내역이 없습니다.", HttpStatus.CONFLICT),
 	REFUND_EXCEEDS_DEPOSIT("POINT_008", "환급 금액이 납부한 보증금보다 큽니다.", HttpStatus.BAD_REQUEST),
-	INVALID_CURSOR("POINT_009", "before는 1 이상이어야 합니다.", HttpStatus.BAD_REQUEST);
+	INVALID_CURSOR("POINT_009", "before는 1 이상이어야 합니다.", HttpStatus.BAD_REQUEST),
+	DAILY_GRANT_LIMIT_EXCEEDED("POINT_010", "오늘 받을 수 있는 횟수를 모두 사용했습니다.", HttpStatus.CONFLICT);
 
 	private final String code;
 	private final String message;
