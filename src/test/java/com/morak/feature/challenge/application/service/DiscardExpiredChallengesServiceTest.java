@@ -37,6 +37,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /** 자동 폐기 배치(위키 §4.9 ③)와 {@link DiscardChallengeTransaction#discardIfExpired}. 트랜잭션 관리자는 목이다. */
@@ -169,6 +170,20 @@ class DiscardExpiredChallengesServiceTest {
 		verify(participation).discardAll(CHALLENGE, "아침 독서", Set.of(1L, 2L), NOW);
 		verify(notice, times(1)).autoDiscarded(1L, CHALLENGE, 100, "아침 독서", 1_000);
 		verify(notice, times(1)).autoDiscarded(2L, CHALLENGE, 101, "아침 독서", 1_000);
+	}
+
+	@Test
+	void retriesTransientLockFailure() {
+		candidates(List.of(CHALLENGE));
+		when(challenges.findById(CHALLENGE)).thenAnswer(i -> Optional.of(challenge(ChallengeStatus.START_HELD, 0)));
+		when(challenges.findByIdForUpdate(CHALLENGE))
+				.thenAnswer(i -> Optional.of(challenge(ChallengeStatus.START_HELD, 0)));
+		when(participation.discardAll(anyLong(), anyString(), any(), any()))
+				.thenThrow(new PessimisticLockingFailureException("lock timeout"))
+				.thenReturn(List.of(new DiscardedParticipant(100, 1L, true, 0)));
+
+		assertEquals(new Summary(1, 0, 0), service.runFor(DUE_DAY));
+		verify(notice, times(1)).autoDiscarded(1L, CHALLENGE, 100, "아침 독서", 0);
 	}
 
 	@Test

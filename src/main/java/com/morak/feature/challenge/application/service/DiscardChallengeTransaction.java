@@ -76,6 +76,7 @@ public class DiscardChallengeTransaction {
 	 *
 	 * <p>TODO(D-30): 마감 전 합류 인원이 최소 인원 이상이면 폐기하지 않는다. 시작 처리(②)가 그 챌린지에서 실패했을 때
 	 * 시작해야 할 챌린지를 폐기하지 않기 위한 안전장치이며, 다음 시작 처리가 시작시킨다(D-29 ④).
+	 * ②가 계속 실패하면 시작도 폐기도 되지 않으므로 error 로그로 알린다.
 	 */
 	@Transactional
 	public Result discardIfExpired(long challengeId, LocalDate today) {
@@ -102,7 +103,8 @@ public class DiscardChallengeTransaction {
 		}
 		int joined = participationReader.countJoinedBefore(challengeId, challenge.recruitDeadlineEnd());
 		if (challenge.hasEnoughMembers(joined)) {
-			log.warn("자동 폐기 건너뜀(마감 전 인원 충족, 시작 처리 대상): challengeId={}, joined={}, today={}", challengeId,
+			// 정상이면 ②가 먼저 시작시켜 여기 오지 않는다. 왔다면 ②가 이 챌린지에서 실패한 것이라 운영자가 봐야 한다.
+			log.error("자동 폐기 건너뜀(마감 전 인원 충족, 시작 처리 실패 의심): challengeId={}, joined={}, today={}", challengeId,
 					joined, today);
 			return Result.skipped(challengeId);
 		}

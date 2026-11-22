@@ -93,7 +93,7 @@ class AutoDiscardChallengeIntegrationTest {
 
 	/**
 	 * 위키 §7 "시작 예정 11/1, 인원 미달 → 11/3 23:59까지 추가 모집, 미충족 시 11/4 00:00 자동 폐기"를 한 달 뒤 날짜로 옮겼다.
-	 * 실제 지원·승인 흐름이 오늘(테스트 실행일) 이후 시작일을 요구하므로 12/1 시작으로 둔다.
+	 * 승인은 합류 시각을 실제 현재 시각으로 기록하므로, 승인한 참여자가 마감 전 합류로 세어지도록 시작일을 테스트 실행일 뒤(12/1)로 둔다.
 	 */
 	@Test
 	void shortChallengeIsDiscardedAtMidnightAfterRecruitDeadlineWithFullRefundAndNoticeToEveryone() {
@@ -120,6 +120,15 @@ class AutoDiscardChallengeIntegrationTest {
 		}
 		assertEquals(3, count(REFUNDS));
 		assertEquals(0, count("SELECT count(*) FROM morak.participation_result"));
+		// 알림 #7은 참가마다 한 번이다(dedup_key = CHALLENGE_AUTO_DISCARDED:{participationId}).
+		assertEquals(
+				jdbc.sql("SELECT 'CHALLENGE_AUTO_DISCARDED:' || id FROM morak.participation WHERE challenge_id = :c ORDER BY id")
+						.param("c", challenge).query(String.class).list(),
+				jdbc.sql("""
+						SELECT n.dedup_key FROM morak.notification n
+						JOIN morak.participation p ON n.dedup_key = 'CHALLENGE_AUTO_DISCARDED:' || p.id
+						WHERE n.type = 'CHALLENGE_AUTO_DISCARDED' ORDER BY p.id
+						""").query(String.class).list());
 	}
 
 	@Test

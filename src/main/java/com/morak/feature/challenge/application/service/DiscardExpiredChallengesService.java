@@ -78,6 +78,7 @@ public class DiscardExpiredChallengesService {
 							() -> discardOnce(challengeId, today));
 					if (outcome == Outcome.DISCARDED) {
 						discarded++;
+						log.info("챌린지 자동 폐기: challengeId={}, today={}", challengeId, today);
 					} else {
 						skipped++;
 					}
@@ -109,9 +110,6 @@ public class DiscardExpiredChallengesService {
 				notices.autoDiscarded(participant.userId(), challengeId, participant.participationId(), result.title(),
 						participant.refundedPoint());
 			}
-		}
-		if (result.outcome() == Outcome.DISCARDED) {
-			log.info("챌린지 자동 폐기: challengeId={}, participants={}", challengeId, result.participants().size());
 		}
 		return result.outcome();
 	}
