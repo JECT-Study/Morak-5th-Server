@@ -19,4 +19,10 @@ public interface ChallengeRepository {
 	 * 시작 보류이고 보류한 날이 오늘보다 앞선 챌린지(보류된 당일 제외). 잠금 없이 읽으므로 처리할 때 다시 확인해야 한다.
 	 */
 	List<Long> findStartDueIds(LocalDate today, long afterId, int limit);
+
+	/**
+	 * 자동 폐기 대상 후보 id를 id 오름차순으로 반환한다(위키 §4.9 ③). 시작 보류이고 추가 모집 마감일(시작일 + 2일)이 오늘보다
+	 * 앞선 챌린지(누락 보정 포함). 잠금 없이 읽으므로 처리할 때 다시 확인해야 한다.
+	 */
+	List<Long> findDiscardDueIds(LocalDate today, long afterId, int limit);
 }

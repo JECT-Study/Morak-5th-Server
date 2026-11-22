@@ -27,4 +27,16 @@ class NotificationChallengeDiscardNotice implements ChallengeDiscardNotice {
 				challengeId,
 				"CHALLENGE_DISCARDED:" + participationId));
 	}
+
+	/** TODO(D-30): dedup 키는 참가마다 한 번이다(참가 하나는 한 번만 폐기된다). */
+	@Override
+	public void autoDiscarded(
+			long recipientUserId, long challengeId, long participationId, String challengeTitle, int refundedPoint) {
+		notifications.notify(new NotifyCommand(
+				recipientUserId,
+				new NotificationContent.ChallengeAutoDiscarded(challengeTitle, (long) refundedPoint),
+				TARGET_CHALLENGE,
+				challengeId,
+				"CHALLENGE_AUTO_DISCARDED:" + participationId));
+	}
 }

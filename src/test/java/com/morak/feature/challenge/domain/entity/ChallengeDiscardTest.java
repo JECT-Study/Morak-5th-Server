@@ -1,6 +1,7 @@
 package com.morak.feature.challenge.domain.entity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -39,6 +40,28 @@ class ChallengeDiscardTest {
 			assertEquals(ChallengeErrorCode.NOT_START_HELD, error.getErrorCode());
 			assertEquals(status, challenge.getStatus());
 			assertEquals(status == ChallengeStatus.DISCARDED, challenge.isDiscarded());
+		}
+	}
+
+	/** 위키 §7: 시작 예정일에 보류되면 마감일(시작일 + 2일) 23:59까지 추가 모집하고, 그 다음 날 00:00부터 자동 폐기 대상이다. */
+	@Test
+	void startHeldChallengeIsDiscardDueFromTheDayAfterRecruitDeadline() {
+		// 시작 예정 12/1 → 마감 12/3 23:59 → 12/4 00:00 자동 폐기
+		Challenge challenge = challengeWith(ChallengeStatus.START_HELD);
+
+		assertFalse(challenge.isDiscardDue(LocalDate.of(2026, 12, 1)));
+		assertFalse(challenge.isDiscardDue(LocalDate.of(2026, 12, 3)));
+		assertTrue(challenge.isDiscardDue(LocalDate.of(2026, 12, 4)));
+		// 서버가 멈춰 놓친 날짜도 대상이다(누락 보정).
+		assertTrue(challenge.isDiscardDue(LocalDate.of(2026, 12, 10)));
+	}
+
+	@Test
+	void onlyStartHeldChallengeIsDiscardDue() {
+		for (ChallengeStatus status : ChallengeStatus.values()) {
+			if (status != ChallengeStatus.START_HELD) {
+				assertFalse(challengeWith(status).isDiscardDue(LocalDate.of(2026, 12, 10)), status.name());
+			}
 		}
 	}
 
