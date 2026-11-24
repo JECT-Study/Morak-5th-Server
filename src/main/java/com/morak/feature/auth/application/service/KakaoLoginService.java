@@ -33,11 +33,9 @@ public class KakaoLoginService {
 		try {
 			profile = oauthProvider.getProfile(command.code());
 		} catch (OAuthProviderException exception) {
-			boolean google = "GOOGLE".equals(oauthProvider.provider());
-			if (exception.isInvalidAuthorization()) {
-				throw new BusinessException(google ? AuthErrorCode.INVALID_GOOGLE_AUTHORIZATION : AuthErrorCode.INVALID_KAKAO_AUTHORIZATION);
-			}
-			throw new BusinessException(google ? AuthErrorCode.GOOGLE_UNAVAILABLE : AuthErrorCode.KAKAO_UNAVAILABLE);
+			throw new BusinessException(exception.isInvalidAuthorization()
+					? oauthProvider.provider().invalidAuthorization()
+					: oauthProvider.provider().unavailable());
 		}
 		return completeSocialLoginService.login(profile);
 	}

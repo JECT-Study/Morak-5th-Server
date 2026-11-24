@@ -1,5 +1,6 @@
 package com.morak.feature.auth.infrastructure.oauth;
 
+import com.morak.feature.auth.domain.vo.SocialProvider;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -38,8 +39,8 @@ public class GoogleOAuthClient implements SocialOAuthProvider {
 	}
 
 	@Override
-	public String provider() {
-		return "GOOGLE";
+	public SocialProvider provider() {
+		return SocialProvider.GOOGLE;
 	}
 
 	@Override
@@ -86,7 +87,7 @@ public class GoogleOAuthClient implements SocialOAuthProvider {
 		String email = profile.path("email_verified").asBoolean(false) ? profile.path("email").asText(null) : null;
 		String picture = profile.path("picture").asText(null);
 		return new SocialProfile(
-				provider(),
+				provider().name(),
 				profile.path("sub").asText(),
 				email,
 				picture == null || picture.isBlank() ? null : picture);

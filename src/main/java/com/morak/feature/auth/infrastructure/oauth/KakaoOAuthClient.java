@@ -1,5 +1,6 @@
 package com.morak.feature.auth.infrastructure.oauth;
 
+import com.morak.feature.auth.domain.vo.SocialProvider;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -38,8 +39,8 @@ public class KakaoOAuthClient implements SocialOAuthProvider {
 	}
 
 	@Override
-	public String provider() {
-		return "KAKAO";
+	public SocialProvider provider() {
+		return SocialProvider.KAKAO;
 	}
 
 	@Override
@@ -91,7 +92,7 @@ public class KakaoOAuthClient implements SocialOAuthProvider {
 			profileImageUrl = properties.path("profile_image").asText(null);
 		}
 		return new SocialProfile(
-				provider(),
+				provider().name(),
 				profile.path("id").asText(),
 				account.path("email").asText(null),
 				profileImageUrl);
