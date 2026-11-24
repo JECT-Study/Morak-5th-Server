@@ -8,4 +8,6 @@ public interface SocialAccountRepository {
 	Optional<SocialAccount> findByProviderAndProviderUserId(String provider, String providerUserId);
 
 	SocialAccount save(SocialAccount socialAccount);
+
+	void delete(SocialAccount socialAccount);
 }
