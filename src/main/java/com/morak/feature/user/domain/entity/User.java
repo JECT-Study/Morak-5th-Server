@@ -19,6 +19,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -90,6 +91,7 @@ public class User extends BaseEntity {
 	public boolean isOnboarded() { return onboardedAt != null; }
 	public boolean isAdmin() { return ROLE_ADMIN.equals(role); }
 	public boolean isActive() { return STATUS_ACTIVE.equals(status) && deletedAt == null; }
+	public List<String> interestCodes() { return interests.stream().sorted().toList(); }
 
 	public void agreeToTerms(TermsAgreements agreements, LocalDateTime now) {
 		if (hasAgreedToTerms()) {
