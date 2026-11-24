@@ -10,7 +10,9 @@ public enum AuthErrorCode implements ErrorCode {
 	AUTHENTICATION_REQUIRED("AUTH_004", "로그인이 필요합니다.", HttpStatus.UNAUTHORIZED),
 	ACCESS_DENIED("AUTH_005", "접근 권한이 없습니다.", HttpStatus.FORBIDDEN),
 	UNSUPPORTED_SOCIAL_PROVIDER("AUTH_006", "지원하지 않는 소셜 로그인 제공자입니다.", HttpStatus.BAD_REQUEST),
-	INVALID_REFRESH_TOKEN("AUTH_007", "리프레시 토큰이 유효하지 않습니다.", HttpStatus.UNAUTHORIZED);
+	INVALID_REFRESH_TOKEN("AUTH_007", "리프레시 토큰이 유효하지 않습니다.", HttpStatus.UNAUTHORIZED),
+	INVALID_GOOGLE_AUTHORIZATION("AUTH_008", "구글 로그인 인증 코드가 유효하지 않습니다.", HttpStatus.UNAUTHORIZED),
+	GOOGLE_UNAVAILABLE("AUTH_009", "구글 로그인 처리 중 오류가 발생했습니다.", HttpStatus.BAD_GATEWAY);
 
 	private final String code;
 	private final String message;

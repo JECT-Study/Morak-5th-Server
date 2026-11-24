@@ -8,9 +8,11 @@
 
 ## API
 
+구글 로그인도 같은 흐름이다. 경로의 provider만 `google`로 바꾸면 되고, 백엔드는 `https://oauth2.googleapis.com/token`에서 토큰을 교환한 뒤 userinfo에서 `sub`, `email`, `picture`를 받는다.
+
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
-| `POST` | `/auth/login/{provider}` | Next.js BFF가 provider 인가 코드를 전달한다. 백엔드는 provider 토큰 교환, 사용자 조회/생성, 서비스 토큰 발급을 처리한다. 현재 지원 provider는 `kakao`다. |
+| `POST` | `/auth/login/{provider}` | Next.js BFF가 provider 인가 코드를 전달한다. 백엔드는 provider 토큰 교환, 사용자 조회/생성, 서비스 토큰 발급을 처리한다. 현재 지원 provider는 `kakao`, `google`이다. |
 
 `POST /auth/login/kakao` 요청:
 
@@ -86,7 +88,9 @@ Next.js BFF가 OAuth state 검증과 provider callback을 담당한다. 백엔�
 
 ## 데이터와 토큰
 
-- 최초 로그인에서 `users`에 회원을 만들고 `social_account`에 `KAKAO`와 카카오 사용자 ID를 연결한다.
+- 최초 로그인에서 `users`에 회원을 만들고 `social_account`에 `KAKAO`와 카카오 사용자 ID를 연결한다. 구글은 `GOOGLE`과 구글 `sub`를 연결한다.
+- 계정 연동은 하지 않는다. 같은 이메일로 카카오와 구글에 각각 로그인하면 회원이 따로 생긴다.
+- 구글은 `email_verified`가 `true`인 이메일만 저장한다.
 - 재로그인에서는 같은 제공자와 사용자 ID로 기존 회원을 찾으므로 회원을 중복 생성하지 않는다.
 - 카카오가 동의된 이메일이나 프로필 이미지를 반환하면 기존 회원에도 값을 갱신한다. 제공되지 않은 값은 덮어쓰지 않는다.
 - Access Token은 HS256 JWT이며 회원 ID와 `onboarded` claim을 포함한다. 기본 유효기간은 30분이다.
@@ -103,6 +107,8 @@ Next.js BFF가 OAuth state 검증과 provider callback을 담당한다. 백엔�
 | `KAKAO_REST_API_KEY` | 카카오 REST API 키 |
 | `KAKAO_CLIENT_SECRET` | 카카오 앱에서 활성화한 경우 사용하는 Client Secret |
 | `KAKAO_REDIRECT_URI` | 카카오 콘솔에 등록한 Next.js BFF callback URI와 정확히 일치해야 함. 로컬 기본값은 `http://localhost:3000/api/auth/callback/kakao` |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | 구글 OAuth 클라이언트 ID와 Secret |
+| `GOOGLE_REDIRECT_URI` | 구글 콘솔에 등록한 Next.js BFF callback URI와 정확히 일치해야 함. 로컬 기본값은 `http://localhost:3000/api/auth/callback/google` |
 | `JWT_SECRET` | HS256 서명키, 32자 이상 |
 
 ## 검증 현황과 다음 작업
