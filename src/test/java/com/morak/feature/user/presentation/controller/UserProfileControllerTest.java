@@ -73,6 +73,15 @@ class UserProfileControllerTest {
 	}
 
 	@Test
+	void nonNumericUserIdIsBadRequest() throws Exception {
+		mvc.perform(get("/users/abc").with(loggedIn(true)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("COMMON_001"));
+
+		verifyNoInteractions(service);
+	}
+
+	@Test
 	void callerMustBeLoggedInAndOnboarded() throws Exception {
 		mvc.perform(get("/users/7")).andExpect(status().isUnauthorized());
 		mvc.perform(get("/users/7").with(loggedIn(false))).andExpect(status().isForbidden());

@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -49,7 +50,9 @@ public class GlobalExceptionHandler {
 		return badRequest(message);
 	}
 
-	@ExceptionHandler({ConstraintViolationException.class, HttpMessageNotReadableException.class})
+	// TypeMismatchException: 숫자 경로·쿼리 값에 문자가 오면(/users/abc) 500이 아니라 400이다.
+	@ExceptionHandler({ConstraintViolationException.class, HttpMessageNotReadableException.class,
+			TypeMismatchException.class})
 	public ResponseEntity<ApiResponse<Void>> handleInvalidRequest(Exception exception) {
 		return badRequest(CommonErrorCode.INVALID_REQUEST.message());
 	}
