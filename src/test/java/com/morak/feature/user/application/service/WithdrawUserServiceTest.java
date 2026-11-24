@@ -34,7 +34,7 @@ class WithdrawUserServiceTest {
 	private final UserRepository users = mock(UserRepository.class);
 	private final OngoingParticipationReader participations = mock(OngoingParticipationReader.class);
 	private final LoginSessionRevoker sessions = mock(LoginSessionRevoker.class);
-	private final WithdrawUserService service = new WithdrawUserService(users, participations, sessions, CLOCK);
+	private final WithdrawUserService service = new WithdrawUserService(users, participations, sessions, CLOCK, Optional.empty());
 
 	@Test
 	void withdrawsAndRevokesSessionsWhenNoOngoingChallenge() {

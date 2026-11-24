@@ -118,17 +118,17 @@ class UserServiceTest {
 		when(repository.findById(new UserId(7L))).thenReturn(Optional.empty());
 		when(repository.findByIdForUpdate(new UserId(7L))).thenReturn(Optional.empty());
 		assertTrue(service.findUser(new UserId(7L)).isEmpty());
-		assertTrue(service.updateSocialProfile(new UserId(7L), "new@example.com", null).isEmpty());
+		assertTrue(service.updateSocialProfile(new UserId(7L), "new@example.com").isEmpty());
 		verify(repository, never()).save(any());
 	}
 
 	@Test
-	void updatesActiveUserAndPreservesExistingProfileWhenProviderOmitsValues() {
+	void socialLoginUpdatesEmailButKeepsProfileImage() {
 		User user = persistedUser();
 		ReflectionTestUtils.setField(user, "onboardedAt", LocalDateTime.now());
 		when(repository.findById(new UserId(7L))).thenReturn(Optional.of(user));
 		when(repository.findByIdForUpdate(new UserId(7L))).thenReturn(Optional.of(user));
-		var result = service.updateSocialProfile(new UserId(7L), "new@example.com", " ").orElseThrow();
+		var result = service.updateSocialProfile(new UserId(7L), "new@example.com").orElseThrow();
 		assertEquals("new@example.com", user.getEmail());
 		assertEquals("https://example.com/old.png", user.getProfileImageUrl());
 		assertTrue(result.onboarded());
@@ -140,7 +140,7 @@ class UserServiceTest {
 		User user = persistedUser();
 		ReflectionTestUtils.setField(user, "deletedAt", LocalDateTime.now());
 		when(repository.findByIdForUpdate(new UserId(7L))).thenReturn(Optional.of(user));
-		var result = service.updateSocialProfile(new UserId(7L), "new@example.com", null).orElseThrow();
+		var result = service.updateSocialProfile(new UserId(7L), "new@example.com").orElseThrow();
 		assertFalse(result.active());
 		assertEquals("old@example.com", user.getEmail());
 	}
