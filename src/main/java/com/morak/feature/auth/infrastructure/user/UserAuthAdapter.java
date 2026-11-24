@@ -32,6 +32,6 @@ public class UserAuthAdapter implements UserAuthPort {
 	}
 
 	private static UserState toUserState(UserAuthInfo user) {
-		return new UserState(new AuthUserId(user.userId().value()), user.active(), user.onboarded());
+		return new UserState(new AuthUserId(user.userId().value()), user.active(), user.onboarded(), user.admin());
 	}
 }

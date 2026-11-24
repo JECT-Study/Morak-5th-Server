@@ -32,6 +32,7 @@ public class User extends BaseEntity {
 
 	private static final String STATUS_ACTIVE = "ACTIVE";
 	private static final String STATUS_WITHDRAWN = "WITHDRAWN";
+	private static final String ROLE_ADMIN = "ADMIN";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -61,6 +62,10 @@ public class User extends BaseEntity {
 	@Column(nullable = false, length = 20)
 	private String status = STATUS_ACTIVE;
 
+	/** USER(일반) / ADMIN(운영진). 위키 §5. */
+	@Column(nullable = false, length = 20)
+	private String role = "USER";
+
 	@Column(name = "terms_agreed_at")
 	private LocalDateTime termsAgreedAt;
 
@@ -83,6 +88,7 @@ public class User extends BaseEntity {
 	public UserId userId() { return new UserId(id); }
 	public boolean hasAgreedToTerms() { return termsAgreedAt != null; }
 	public boolean isOnboarded() { return onboardedAt != null; }
+	public boolean isAdmin() { return ROLE_ADMIN.equals(role); }
 	public boolean isActive() { return STATUS_ACTIVE.equals(status) && deletedAt == null; }
 
 	public void agreeToTerms(TermsAgreements agreements, LocalDateTime now) {

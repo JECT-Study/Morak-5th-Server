@@ -10,5 +10,9 @@ public interface UserAuthPort {
 
 	Optional<UserState> updateSocialProfile(AuthUserId userId, String email, String profileImageUrl);
 
-	record UserState(AuthUserId userId, boolean active, boolean onboarded) {}
+	record UserState(AuthUserId userId, boolean active, boolean onboarded, boolean admin) {
+		public UserState(AuthUserId userId, boolean active, boolean onboarded) {
+			this(userId, active, onboarded, false);
+		}
+	}
 }
