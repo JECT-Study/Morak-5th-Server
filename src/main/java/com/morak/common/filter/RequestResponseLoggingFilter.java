@@ -58,7 +58,7 @@ public class RequestResponseLoggingFilter extends OncePerRequestFilter {
 					wrappedResponse.getStatus(),
 					durationMillis,
 					("/users/me/terms-agreements".equals(route) || "/users/me/marketing-agreements".equals(route)
-							|| "/users/me/onboarding".equals(route))
+							|| "/users/me/onboarding".equals(route) || "/users/me".equals(route))
 							? "<omitted: member data>"
 							: formatBody(
 									wrappedRequest.getContentAsByteArray(),

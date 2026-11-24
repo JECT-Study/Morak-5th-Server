@@ -7,6 +7,7 @@ import com.morak.feature.auth.application.service.AuthenticateUserService;
 import com.morak.feature.auth.infrastructure.security.LoginUserJwtConverter;
 import com.morak.feature.auth.infrastructure.user.UserAuthAdapter;
 import com.morak.feature.auth.infrastructure.token.ServiceTokenProvider;
+import com.morak.feature.user.application.port.out.SignupPointGranter;
 import com.morak.feature.user.application.service.UserService;
 import com.morak.feature.user.domain.entity.User;
 import com.morak.feature.user.application.service.WithdrawUserService;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
@@ -70,6 +72,9 @@ class SecurityConfigTest {
 
 	@MockitoBean
 	private WithdrawUserService withdrawUserService;
+
+	@MockitoBean
+	private SignupPointGranter signupPointGranter;
 
 	@Test
 	void notOnboardedMemberCanWithdraw() throws Exception {
@@ -328,6 +333,52 @@ class SecurityConfigTest {
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.error.code").value("USER_003"));
 		verify(userRepository).flushOnboarding();
+		verify(signupPointGranter).grant(7L);
+	}
+
+	@Test
+	void notOnboardedMemberCannotUpdateProfile() throws Exception {
+		User user = userForTermsAgreements();
+		mvc.perform(patch("/users/me")
+						.header("Authorization", "Bearer " + token(SECRET, Duration.ofMinutes(30)))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"nickname\":\"Morak\",\"interests\":[\"EXERCISE\"]}"))
+				.andExpect(status().isForbidden());
+		assertNull(user.getNickname());
+		verify(userRepository, never()).flushOnboarding();
+	}
+
+	@Test
+	void onboardedMemberUpdatesProfile() throws Exception {
+		User user = userForTermsAgreements();
+		ReflectionTestUtils.setField(user, "termsAgreedAt", LocalDateTime.now());
+		ReflectionTestUtils.setField(user, "onboardedAt", LocalDateTime.now());
+		mvc.perform(patch("/users/me")
+						.header("Authorization", "Bearer " + token(SECRET, Duration.ofMinutes(30)))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"nickname\":\"NewName\",\"bio\":\"소개\",\"interests\":[\"READING\"]}"))
+				.andExpect(status().isOk())
+				.andExpect(header().string("Cache-Control", "no-store"))
+				.andExpect(jsonPath("$.data.nickname").value("NewName"));
+		assertEquals("소개", user.getBio());
+		assertEquals(Set.of("READING"), ReflectionTestUtils.getField(user, "interests"));
+		verify(userRepository).flushOnboarding();
+		verifyNoInteractions(signupPointGranter);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"{\"nickname\":\"A\",\"interests\":[\"READING\"]}",
+			"{\"nickname\":\"NewName\",\"interests\":[]}",
+			"{\"nickname\":\"NewName\",\"profileLinkUrl\":\"ftp://x\",\"interests\":[\"READING\"]}"})
+	void rejectsInvalidProfileUpdate(String body) throws Exception {
+		User user = userForTermsAgreements();
+		ReflectionTestUtils.setField(user, "onboardedAt", LocalDateTime.now());
+		mvc.perform(patch("/users/me")
+						.header("Authorization", "Bearer " + token(SECRET, Duration.ofMinutes(30)))
+						.contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.code").value("COMMON_001"));
+		verify(userRepository, never()).findByIdForUpdate(any());
 	}
 
 	@Test
