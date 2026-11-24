@@ -23,6 +23,13 @@ public class SocialAccountRepositoryAdapter implements SocialAccountRepository {
 	}
 
 	@Override
+	public void delete(SocialAccount socialAccount) {
+		jpaRepository.delete(socialAccount);
+		// Hibernate는 DELETE를 INSERT 뒤에 내보내므로, 같은 키로 다시 연결하기 전에 먼저 flush한다.
+		jpaRepository.flush();
+	}
+
+	@Override
 	public SocialAccount save(SocialAccount socialAccount) {
 		try {
 			return jpaRepository.saveAndFlush(socialAccount);

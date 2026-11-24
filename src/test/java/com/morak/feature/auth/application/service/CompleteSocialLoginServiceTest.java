@@ -35,7 +35,7 @@ class CompleteSocialLoginServiceTest {
 	private final TransactionStatus recovery = mock(TransactionStatus.class);
 	private final SocialProfile profile = new SocialProfile("KAKAO", "123", "user@example.com", null);
 	private final CompleteSocialLoginService service = new CompleteSocialLoginService(
-			accounts, users, refreshTokens, tokens, Duration.ofDays(14), transactions);
+			accounts, users, refreshTokens, tokens, Duration.ofDays(14), transactions, false);
 	private final DuplicateSocialAccountException conflict = new DuplicateSocialAccountException(new RuntimeException());
 
 	CompleteSocialLoginServiceTest() {
@@ -119,6 +119,25 @@ class CompleteSocialLoginServiceTest {
 		verify(transactions).rollback(first);
 		verifyNoInteractions(tokens, refreshTokens);
 		verify(users, never()).createUser(any(), any());
+	}
+
+	@Test
+	void rejoinsWithdrawnUserAsNewUserWhenAllowed() {
+		var rejoinService = new CompleteSocialLoginService(
+				accounts, users, refreshTokens, tokens, Duration.ofDays(14), transactions, true);
+		SocialAccount old = new SocialAccount(42L, "KAKAO", "123");
+		when(accounts.findByProviderAndProviderUserId("KAKAO", "123")).thenReturn(Optional.of(old));
+		when(users.updateSocialProfile(new AuthUserId(42L), profile.email(), null))
+				.thenReturn(Optional.of(new UserState(new AuthUserId(42L), false, false)));
+		when(tokens.createAccessToken(new AuthUserId(41L), false)).thenReturn(new AccessToken(
+				"access", java.time.Instant.parse("2026-11-02T12:30:00Z")));
+		when(tokens.createRefreshToken()).thenReturn("refresh");
+
+		assertEquals("access", rejoinService.login(profile).accessToken());
+		InOrder order = inOrder(accounts, users);
+		order.verify(accounts).delete(old);
+		order.verify(users).createUser(profile.email(), null);
+		order.verify(accounts).save(argThat(account -> account.getUserId().equals(41L)));
 	}
 
 }
