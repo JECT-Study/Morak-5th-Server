@@ -105,12 +105,14 @@ jobs:
             # 서버에서 직접 docker compose를 다시 실행해도 같은 이미지를 쓰도록 .env에 남긴다.
             echo "IMAGE=$IMAGE_TAG" >> .env
             echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            # 이미지는 SHA 태그라 -f(태그 없는 것만)로는 지워지지 않아 디스크가 찬다.
+            # pull 전에 실행 중인 컨테이너(app, redis)가 쓰지 않는 이미지를 모두 지운다.
+            docker image prune -af
             docker compose pull app
             docker compose up -d
             for i in $(seq 1 24); do
               if curl -fs http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
                 echo "Deployed $IMAGE_TAG"
-                docker image prune -f
                 exit 0
               fi
               sleep 5
