@@ -8,10 +8,13 @@ import com.morak.feature.user.domain.vo.Interest;
 import com.morak.feature.user.domain.vo.OnboardingProfile;
 import com.morak.feature.user.domain.vo.TermsAgreements;
 import com.morak.feature.user.domain.vo.UserId;
+import com.morak.feature.user.domain.vo.UserRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -33,7 +36,6 @@ public class User extends BaseEntity {
 
 	private static final String STATUS_ACTIVE = "ACTIVE";
 	private static final String STATUS_WITHDRAWN = "WITHDRAWN";
-	private static final String ROLE_ADMIN = "ADMIN";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -63,9 +65,9 @@ public class User extends BaseEntity {
 	@Column(nullable = false, length = 20)
 	private String status = STATUS_ACTIVE;
 
-	/** USER(일반) / ADMIN(운영진). 위키 §5. */
+	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
-	private String role = "USER";
+	private UserRole role = UserRole.USER;
 
 	@Column(name = "terms_agreed_at")
 	private LocalDateTime termsAgreedAt;
@@ -89,7 +91,7 @@ public class User extends BaseEntity {
 	public UserId userId() { return new UserId(id); }
 	public boolean hasAgreedToTerms() { return termsAgreedAt != null; }
 	public boolean isOnboarded() { return onboardedAt != null; }
-	public boolean isAdmin() { return ROLE_ADMIN.equals(role); }
+	public boolean isAdmin() { return role == UserRole.ADMIN; }
 	public boolean isActive() { return STATUS_ACTIVE.equals(status) && deletedAt == null; }
 	public List<String> interestCodes() { return interests.stream().sorted().toList(); }
 
