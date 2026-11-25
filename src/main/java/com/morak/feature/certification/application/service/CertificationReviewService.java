@@ -75,18 +75,17 @@ public class CertificationReviewService {
 		return store.findChallengeOptions();
 	}
 
-	@Transactional(readOnly = true)
+	// 사진 서명(Supabase 호출) 동안 DB 연결을 쥐지 않으려고 트랜잭션을 두지 않는다. 제출된 인증의 사진은 바뀌지 않아 두 조회가 따로 읽어도 된다.
 	public Detail detail(long certificationId) {
 		return toDetail(find(certificationId));
 	}
 
-	@Transactional
+	// 판정은 조건부 UPDATE 한 번이라 트랜잭션이 필요 없다. 사진 서명(Supabase 호출) 동안 DB 연결·행 잠금을 쥐지 않으려고 트랜잭션을 두지 않는다.
 	public Detail approve(long adminUserId, long certificationId) {
 		judge(adminUserId, certificationId, APPROVED, null);
 		return toDetail(find(certificationId));
 	}
 
-	@Transactional
 	public Detail reject(long adminUserId, long certificationId, String reason) {
 		RejectReason rejectReason = new RejectReason(reason);
 		judge(adminUserId, certificationId, REJECTED, rejectReason.value());

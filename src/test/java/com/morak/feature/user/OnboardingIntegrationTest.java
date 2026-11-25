@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.morak.common.exception.BusinessException;
+import com.morak.feature.user.application.dto.result.MyUserInfo;
 import com.morak.feature.user.application.service.UserService;
 import com.morak.feature.user.domain.exception.UserErrorCode;
 import com.morak.feature.user.domain.vo.OnboardingProfile;
@@ -108,8 +109,10 @@ class OnboardingIntegrationTest {
 				() -> userService.updateProfile(new UserId(USER_ID), profile("Taken")));
 		assertEquals(UserErrorCode.NICKNAME_ALREADY_IN_USE, error.getErrorCode());
 
-		userService.updateProfile(new UserId(USER_ID),
+		MyUserInfo info = userService.updateProfile(new UserId(USER_ID),
 				OnboardingProfile.from("Morak", "새 소개", null, List.of("READING")));
+		assertEquals(List.of("READING"), info.interests());
+		assertEquals(List.of("READING"), userService.getMyInfo(new UserId(USER_ID)).interests());
 		var row = jdbc.sql("SELECT nickname, bio FROM morak.users WHERE id = :id").param("id", USER_ID).query().singleRow();
 		assertEquals("Morak", row.get("nickname"));
 		assertEquals("새 소개", row.get("bio"));
