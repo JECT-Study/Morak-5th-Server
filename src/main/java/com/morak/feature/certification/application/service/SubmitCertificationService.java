@@ -26,7 +26,8 @@ import org.springframework.stereotype.Service;
 /**
  * 인증 제출(위키 §4.4). 하루 1회, 사진 한 장, 제출 후 수정·삭제·재제출 없음.
  *
- * <p>인증 날짜는 요청을 받은 시각의 KST 날짜다. 지난 날짜로 제출할 방법이 없으므로 "당일 23:59까지"는 따로 검사하지 않는다.
+ * <p>인증 날짜는 서버가 요청을 다 받은 시각의 KST 날짜다. 앱이 보낸 인증 날짜가 이와 다르면(23:59에 보내기 시작해 자정 뒤에 도착) 거절해,
+ * 전날 사진이 다음 날 인증으로 저장되지 않게 한다. 날짜를 정하는 것은 서버 시각이라 앱 시계로 지난 날짜를 낼 수는 없다.
  * 퇴장한 사람(참가가 ACTIVE가 아님)과 조기 종료일(챌린지가 FINALIZING)은 상태 검사로 막힌다. 포인트가 오가지 않아 행을 잠그지 않고,
  * 하루 1회는 (participation_id, cert_date) 유니크가 보장한다.
  *
@@ -55,9 +56,13 @@ public class SubmitCertificationService {
 		this.clock = clock;
 	}
 
-	public SubmittedCertification submit(long userId, long challengeId, byte[] image) {
+	/** @param certDate 앱이 인증하려던 날짜. 서버의 오늘(KST)과 다르면 자정을 넘겨 도착한 요청으로 보고 거절한다(D-34 ②) */
+	public SubmittedCertification submit(long userId, long challengeId, LocalDate certDate, byte[] image) {
 		Instant now = clock.instant();
 		LocalDate today = LocalDate.ofInstant(now, KST);
+		if (!today.equals(certDate)) {
+			throw new BusinessException(CertificationErrorCode.DATE_MISMATCH, "certDate=" + certDate + ", today=" + today);
+		}
 		Challenge challenge = targets.findChallenge(challengeId)
 				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
 		if (!challenge.inProgress() || today.isBefore(challenge.startDate()) || today.isAfter(challenge.endDate())) {

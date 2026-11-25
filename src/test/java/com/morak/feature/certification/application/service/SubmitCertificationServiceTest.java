@@ -70,7 +70,7 @@ class SubmitCertificationServiceTest {
 		when(store.save(anyLong(), anyLong(), any(), any(), any(), anyString())).thenReturn(Optional.of(1L));
 		when(urls.resolve(any())).thenReturn(List.of("https://img/1"));
 
-		SubmittedCertification result = service(LAST_SECOND).submit(USER, CHALLENGE, PNG);
+		SubmittedCertification result = service(LAST_SECOND).submit(USER, CHALLENGE, DAY, PNG);
 
 		assertEquals(new SubmittedCertification(1L, DAY, "PENDING", LAST_SECOND, "https://img/1"), result);
 		verify(storage).upload(startsWith("certifications/10/"), eq(PNG), eq("image/png"));
@@ -86,11 +86,25 @@ class SubmitCertificationServiceTest {
 		when(store.save(anyLong(), anyLong(), any(), any(), any(), anyString())).thenReturn(Optional.of(2L));
 		when(urls.resolve(any())).thenReturn(List.of());
 
-		SubmittedCertification result = service(midnight).submit(USER, CHALLENGE, PNG);
+		SubmittedCertification result = service(midnight).submit(USER, CHALLENGE, DAY.plusDays(1), PNG);
 
 		assertEquals(DAY.plusDays(1), result.certDate());
 		assertNull(result.imageUrl());
 		verify(store).save(eq(CHALLENGE), eq(PARTICIPATION), eq(DAY.plusDays(1)), eq(midnight), isNull(), anyString());
+	}
+
+	@Test
+	void rejectsADateOtherThanTodayBeforeUploading() {
+		inProgress(0);
+		active();
+		Instant justAfterMidnight = Instant.parse("2026-11-24T15:00:03Z");
+
+		// 23:59:58에 24일 인증으로 보냈는데 00:00:03에 다 받은 요청, 그리고 앱 시계가 앞선 요청
+		assertError(CertificationErrorCode.DATE_MISMATCH, () -> service(justAfterMidnight).submit(USER, CHALLENGE, DAY, PNG));
+		assertError(CertificationErrorCode.DATE_MISMATCH,
+				() -> service(LAST_SECOND).submit(USER, CHALLENGE, DAY.plusDays(1), PNG));
+		verifyNoInteractions(storage);
+		verify(store, never()).save(anyLong(), anyLong(), any(), any(), any(), anyString());
 	}
 
 	@Test
@@ -159,12 +173,12 @@ class SubmitCertificationServiceTest {
 		inProgress(0);
 		active();
 		SubmitCertificationService service = service(LAST_SECOND);
-		assertError(CertificationErrorCode.INVALID_IMAGE, () -> service.submit(USER, CHALLENGE, "not an image".getBytes()));
+		assertError(CertificationErrorCode.INVALID_IMAGE, () -> service.submit(USER, CHALLENGE, DAY, "not an image".getBytes()));
 		assertError(CertificationErrorCode.IMAGE_TOO_LARGE,
-				() -> service.submit(USER, CHALLENGE, new byte[SubmitCertificationService.MAX_IMAGE_BYTES + 1]));
+				() -> service.submit(USER, CHALLENGE, DAY, new byte[SubmitCertificationService.MAX_IMAGE_BYTES + 1]));
 		SubmitCertificationService noStorage = new SubmitCertificationService(
 				targets, store, Optional.empty(), urls, Clock.fixed(LAST_SECOND, ZoneOffset.UTC));
-		assertError(CertificationErrorCode.IMAGE_STORAGE_UNAVAILABLE, () -> noStorage.submit(USER, CHALLENGE, PNG));
+		assertError(CertificationErrorCode.IMAGE_STORAGE_UNAVAILABLE, () -> noStorage.submit(USER, CHALLENGE, DAY, PNG));
 		verifyNoInteractions(storage);
 		verify(store, never()).save(anyLong(), anyLong(), any(), any(), any(), anyString());
 	}
@@ -186,7 +200,7 @@ class SubmitCertificationServiceTest {
 	}
 
 	private void submit() {
-		service(LAST_SECOND).submit(USER, CHALLENGE, PNG);
+		service(LAST_SECOND).submit(USER, CHALLENGE, DAY, PNG);
 	}
 
 	private static byte[] png() {
