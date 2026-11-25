@@ -4,14 +4,12 @@ import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.user.application.port.out.LoginSessionRevoker;
 import com.morak.feature.user.application.port.out.OngoingParticipationReader;
-import com.morak.feature.user.application.port.out.ProfileImageStorage;
 import com.morak.feature.user.domain.entity.User;
 import com.morak.feature.user.domain.exception.UserErrorCode;
 import com.morak.feature.user.domain.repository.UserRepository;
 import com.morak.feature.user.domain.vo.UserId;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -29,10 +27,10 @@ public class WithdrawUserService {
 	private final OngoingParticipationReader participations;
 	private final LoginSessionRevoker sessions;
 	private final Clock clock;
-	private final Optional<ProfileImageStorage> profileImages;
+	private final ProfileImageService profileImages;
 
 	public WithdrawUserService(UserRepository users, OngoingParticipationReader participations,
-			LoginSessionRevoker sessions, Clock clock, Optional<ProfileImageStorage> profileImages) {
+			LoginSessionRevoker sessions, Clock clock, ProfileImageService profileImages) {
 		this.users = users;
 		this.participations = participations;
 		this.sessions = sessions;
@@ -61,25 +59,20 @@ public class WithdrawUserService {
 		sessions.revokeAll(userId.value(), now);
 		String profileImageUrl = user.getProfileImageUrl();
 		user.withdraw(now);
-		deleteUploadedImageAfterCommit(userId, profileImageUrl);
+		deleteUploadedImageAfterCommit(profileImageUrl);
 	}
 
 	/** 공개 버킷이라 DB에서 URL만 지우면 사진이 계속 열린다. 커밋된 뒤에만 지운다(D-33). */
-	private void deleteUploadedImageAfterCommit(UserId userId, String url) {
-		if (url == null || profileImages.isEmpty()) {
+	private void deleteUploadedImageAfterCommit(String url) {
+		if (url == null) {
 			return;
 		}
-		ProfileImageStorage storage = profileImages.get();
-		storage.keyOf(url).ifPresent(key -> TransactionSynchronizationManager.registerSynchronization(
+		TransactionSynchronizationManager.registerSynchronization(
 				new TransactionSynchronization() {
 					@Override
 					public void afterCommit() {
-						try {
-							storage.delete(key);
-						} catch (RuntimeException exception) {
-							log.warn("탈퇴한 사용자의 프로필 사진을 지우지 못했다. userId={} key={}", userId.value(), key);
-						}
+						profileImages.deleteUploadedImage(url);
 					}
-				}));
+				});
 	}
 }

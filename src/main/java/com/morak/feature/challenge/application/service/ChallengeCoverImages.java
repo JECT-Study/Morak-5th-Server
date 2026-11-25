@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 public class ChallengeCoverImages {
 
 	private static final Logger log = LoggerFactory.getLogger(ChallengeCoverImages.class);
-	public static final int MAX_IMAGE_BYTES = UploadedImages.MAX_IMAGE_BYTES;
 
 	private final Optional<ChallengeCoverStorage> storage;
 	private final CreateChallengeService challenges;
@@ -32,7 +31,7 @@ public class ChallengeCoverImages {
 	}
 
 	public CreatedChallenge create(long ownerId, CreateChallengeCommand command, byte[] content) {
-		if (content.length > MAX_IMAGE_BYTES) {
+		if (content.length > UploadedImages.MAX_IMAGE_BYTES) {
 			throw new BusinessException(ChallengeErrorCode.COVER_IMAGE_TOO_LARGE);
 		}
 		String contentType = validateImage(content);

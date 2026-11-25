@@ -45,20 +45,20 @@ public class ProfileImageService {
 			deleteQuietly(bucket, key);
 			throw exception;
 		}
-		removeUploaded(bucket, previous);
+		deleteUploadedImage(previous);
 		return users.getMyInfo(userId);
 	}
 
 	/** 기본 캐릭터로 되돌린다. 저장소 설정이 없어도 URL은 지운다. */
 	public MyUserInfo remove(UserId userId) {
 		String previous = users.changeProfileImage(userId, null);
-		storage.ifPresent(bucket -> removeUploaded(bucket, previous));
+		deleteUploadedImage(previous);
 		return users.getMyInfo(userId);
 	}
 
-	private static void removeUploaded(ProfileImageStorage bucket, String url) {
+	void deleteUploadedImage(String url) {
 		if (url != null) {
-			bucket.keyOf(url).ifPresent(key -> deleteQuietly(bucket, key));
+			storage.ifPresent(bucket -> bucket.keyOf(url).ifPresent(key -> deleteQuietly(bucket, key)));
 		}
 	}
 
