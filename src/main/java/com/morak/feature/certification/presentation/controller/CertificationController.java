@@ -5,7 +5,9 @@ import com.morak.common.exception.BusinessException;
 import com.morak.common.response.ApiResponse;
 import com.morak.feature.auth.application.dto.result.LoginUser;
 import com.morak.feature.certification.application.dto.result.CertificationFeed;
+import com.morak.feature.certification.application.dto.result.CertificationLike;
 import com.morak.feature.certification.application.dto.result.SubmittedCertification;
+import com.morak.feature.certification.application.service.LikeCertificationService;
 import com.morak.feature.certification.application.service.ReadCertificationFeedService;
 import com.morak.feature.certification.application.service.SubmitCertificationService;
 import com.morak.feature.certification.domain.exception.CertificationErrorCode;
@@ -14,7 +16,6 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.Parameter;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
@@ -24,26 +25,61 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-/** 인증 제출·피드(위키 §4.4). TODO(D-34, D-35): 경로·응답 필드는 프론트와 확정 전 제안값이다. */
+/** 인증 제출·피드·좋아요(위키 §4.4). TODO(D-34, D-35, D-36): 경로·응답 필드는 프론트와 확정 전 제안값이다. */
 @RestController
-@Tag(name = "챌린지 인증", description = "챌린지 인증 제출·피드 API")
+@Tag(name = "챌린지 인증", description = "챌린지 인증 제출·피드·좋아요 API")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public class CertificationController {
 
 	private final SubmitCertificationService service;
 	private final ReadCertificationFeedService feedService;
+	private final LikeCertificationService likeService;
 
-	public CertificationController(SubmitCertificationService service, ReadCertificationFeedService feedService) {
+	public CertificationController(SubmitCertificationService service, ReadCertificationFeedService feedService,
+			LikeCertificationService likeService) {
 		this.service = service;
 		this.feedService = feedService;
+		this.likeService = likeService;
+	}
+
+	@PutMapping("/challenges/{challengeId}/certifications/{certificationId}/like")
+	@Operation(summary = "인증 좋아요",
+			description = "승인된 인증(APPROVED·AUTO_APPROVED)에 좋아요를 누릅니다. 이미 눌렀으면 그대로 둡니다. 피드를 볼 수 있는 사람만 "
+					+ "누를 수 있습니다. 좋아요는 인증 성공 여부에 영향이 없습니다.")
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "처리 후 좋아요 상태"),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+				description = "참여 확정자가 아님(CERTIFICATION_LIKE_NOT_MEMBER). 승인 대기·퇴장 포함"),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+				description = "챌린지 없음, 또는 그 챌린지의 승인된 인증이 아님(CERTIFICATION_LIKE_TARGET_NOT_FOUND)")
+	})
+	public ResponseEntity<ApiResponse<CertificationLike>> like(@AuthenticationPrincipal LoginUser user,
+			@PathVariable long challengeId, @PathVariable long certificationId) {
+		return ResponseEntity.ok(ApiResponse.success(likeService.like(user.userId().value(), challengeId, certificationId)));
+	}
+
+	@DeleteMapping("/challenges/{challengeId}/certifications/{certificationId}/like")
+	@Operation(summary = "인증 좋아요 취소", description = "누른 좋아요를 취소합니다. 누르지 않았으면 그대로 둡니다. 권한·대상 조건은 좋아요와 같습니다.")
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "처리 후 좋아요 상태"),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+				description = "참여 확정자가 아님(CERTIFICATION_LIKE_NOT_MEMBER)"),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+				description = "챌린지 없음, 또는 그 챌린지의 승인된 인증이 아님(CERTIFICATION_LIKE_TARGET_NOT_FOUND)")
+	})
+	public ResponseEntity<ApiResponse<CertificationLike>> unlike(@AuthenticationPrincipal LoginUser user,
+			@PathVariable long challengeId, @PathVariable long certificationId) {
+		return ResponseEntity.ok(ApiResponse.success(likeService.unlike(user.userId().value(), challengeId, certificationId)));
 	}
 
 	@GetMapping("/challenges/{challengeId}/certifications")

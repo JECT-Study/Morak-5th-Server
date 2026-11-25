@@ -46,14 +46,14 @@ class ReadCertificationFeedServiceTest {
 	private final ReadCertificationFeedService service = new ReadCertificationFeedService(targets, store, urls, CLOCK);
 
 	@Test
-	void readsTodaysFeedWithSignedUrlsAndMarksMyCertification() {
+	void readsTodaysFeedWithSignedUrlsLikesAndMarksMyCertification() {
 		when(targets.challengeExists(CHALLENGE)).thenReturn(true);
 		when(targets.findViewer(CHALLENGE, USER)).thenReturn(Optional.of(new Viewer(ME, "ACTIVE")));
 		Instant first = Instant.parse("2026-11-25T01:00:00Z");
 		Instant second = Instant.parse("2026-11-25T02:00:00Z");
-		when(store.find(CHALLENGE, TODAY_KST, ME)).thenReturn(List.of(
-				new FeedRow(1L, TEAMMATE, "APPROVED", first, "k1"),
-				new FeedRow(2L, ME, "PENDING", second, "k2")));
+		when(store.find(CHALLENGE, TODAY_KST, ME, USER)).thenReturn(List.of(
+				new FeedRow(1L, TEAMMATE, "APPROVED", first, "k1", 3, true),
+				new FeedRow(2L, ME, "PENDING", second, "k2", 0, false)));
 		when(targets.findSubmitters(List.of(TEAMMATE, ME))).thenReturn(Map.of(
 				TEAMMATE, new Submitter(8L, "MEMBER", "팀원", "https://p/8"),
 				ME, new Submitter(USER, "HOST", "나", null)));
@@ -65,8 +65,8 @@ class ReadCertificationFeedServiceTest {
 		assertEquals(TODAY_KST, feed.certDate());
 		assertEquals(List.of(
 				new CertificationFeed.Item(1L, 8L, "팀원", "https://p/8", "MEMBER", "APPROVED", first,
-						"https://signed/k1", false),
-				new CertificationFeed.Item(2L, USER, "나", null, "HOST", "PENDING", second, null, true)),
+						"https://signed/k1", false, 3, true),
+				new CertificationFeed.Item(2L, USER, "나", null, "HOST", "PENDING", second, null, true, 0, false)),
 				feed.items());
 	}
 
@@ -75,7 +75,7 @@ class ReadCertificationFeedServiceTest {
 		LocalDate day = LocalDate.of(2026, 11, 20);
 		when(targets.challengeExists(CHALLENGE)).thenReturn(true);
 		when(targets.findViewer(CHALLENGE, USER)).thenReturn(Optional.of(new Viewer(ME, "COMPLETED")));
-		when(store.find(CHALLENGE, day, ME)).thenReturn(List.of());
+		when(store.find(CHALLENGE, day, ME, USER)).thenReturn(List.of());
 		when(targets.findSubmitters(any())).thenReturn(Map.of());
 		when(urls.resolveByKey(any())).thenReturn(Map.of());
 
@@ -83,7 +83,7 @@ class ReadCertificationFeedServiceTest {
 
 		assertEquals(day, feed.certDate());
 		assertTrue(feed.items().isEmpty());
-		verify(store).find(CHALLENGE, day, ME);
+		verify(store).find(CHALLENGE, day, ME, USER);
 	}
 
 	@ParameterizedTest
@@ -91,7 +91,7 @@ class ReadCertificationFeedServiceTest {
 	void allowsMembersWhoAreInOrFinishedTheChallenge(String status) {
 		when(targets.challengeExists(CHALLENGE)).thenReturn(true);
 		when(targets.findViewer(CHALLENGE, USER)).thenReturn(Optional.of(new Viewer(ME, status)));
-		when(store.find(any(Long.class), any(), any(Long.class))).thenReturn(List.of());
+		when(store.find(any(Long.class), any(), any(Long.class), any(Long.class))).thenReturn(List.of());
 		when(targets.findSubmitters(any())).thenReturn(Map.of());
 		when(urls.resolveByKey(any())).thenReturn(Map.of());
 
@@ -134,8 +134,8 @@ class ReadCertificationFeedServiceTest {
 	void skipsARowWhoseParticipationIsGone() {
 		when(targets.challengeExists(CHALLENGE)).thenReturn(true);
 		when(targets.findViewer(CHALLENGE, USER)).thenReturn(Optional.of(new Viewer(ME, "ACTIVE")));
-		when(store.find(CHALLENGE, TODAY_KST, ME)).thenReturn(
-				List.of(new FeedRow(1L, TEAMMATE, "APPROVED", Instant.EPOCH, null)));
+		when(store.find(CHALLENGE, TODAY_KST, ME, USER)).thenReturn(
+				List.of(new FeedRow(1L, TEAMMATE, "APPROVED", Instant.EPOCH, null, 0, false)));
 		when(targets.findSubmitters(List.of(TEAMMATE))).thenReturn(Map.of());
 		when(urls.resolveByKey(List.of())).thenReturn(Map.of());
 
