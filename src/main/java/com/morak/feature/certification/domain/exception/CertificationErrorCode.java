@@ -14,7 +14,8 @@ public enum CertificationErrorCode implements ErrorCode {
 	DATE_MISMATCH(HttpStatus.CONFLICT, "인증 마감 시간이 지났습니다. 오늘 날짜로 다시 인증해 주세요."),
 	INVALID_IMAGE(HttpStatus.BAD_REQUEST, "JPEG, PNG, WebP 사진을 선택해 주세요."),
 	IMAGE_TOO_LARGE(HttpStatus.valueOf(413), "인증 사진은 5MB 이하로 줄여 주세요."),
-	IMAGE_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 처리할 수 없습니다. 다시 시도해 주세요.");
+	IMAGE_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 처리할 수 없습니다. 다시 시도해 주세요."),
+	FEED_NOT_MEMBER(HttpStatus.FORBIDDEN, "참여한 챌린지의 인증만 볼 수 있습니다.");
 
 	private final HttpStatus status;
 	private final String message;
