@@ -25,6 +25,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -121,5 +122,14 @@ public class UserController {
 		} catch (IOException exception) {
 			throw new BusinessException(UserErrorCode.INVALID_PROFILE_IMAGE);
 		}
+	}
+
+	// TODO(D-33): 경로는 프론트와 확정 전 제안값이다.
+	@DeleteMapping("/me/profile-image")
+	@Operation(summary = "프로필 사진 삭제", description = "사진을 지우고 profileImageUrl을 null로 돌립니다. 화면은 기본 캐릭터를 보여 줍니다.")
+	@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
+	public ResponseEntity<ApiResponse<MyUserInfo>> removeProfileImage(@AuthenticationPrincipal LoginUser loginUser) {
+		MyUserInfo result = profileImageService.remove(new UserId(loginUser.userId().value()));
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(ApiResponse.success(result));
 	}
 }

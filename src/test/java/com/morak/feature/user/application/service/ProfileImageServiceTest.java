@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -84,6 +85,29 @@ class ProfileImageServiceTest {
 		assertError(UserErrorCode.PROFILE_IMAGE_TOO_LARGE, new byte[UploadedImages.MAX_IMAGE_BYTES + 1]);
 		assertError(UserErrorCode.INVALID_PROFILE_IMAGE, "not an image".getBytes());
 		verify(storage, never()).upload(anyString(), any(), anyString());
+	}
+
+	@Test
+	void removeClearsUrlAndDeletesOnlyOurUpload() {
+		when(users.changeProfileImage(USER, null)).thenReturn("https://cdn/old");
+		when(storage.keyOf("https://cdn/old")).thenReturn(Optional.of("users/7/old"));
+
+		service.remove(USER);
+
+		verify(storage).delete("users/7/old");
+		verify(users).getMyInfo(USER);
+	}
+
+	@Test
+	void removeKeepsSocialPhotoObjectAndWorksWithoutStorage() {
+		when(users.changeProfileImage(USER, null)).thenReturn("https://k.kakaocdn.net/me.png");
+		when(storage.keyOf("https://k.kakaocdn.net/me.png")).thenReturn(Optional.empty());
+
+		service.remove(USER);
+		new ProfileImageService(Optional.empty(), users).remove(USER);
+
+		verify(storage, never()).delete(anyString());
+		verify(users, times(2)).changeProfileImage(USER, null);
 	}
 
 	@Test
