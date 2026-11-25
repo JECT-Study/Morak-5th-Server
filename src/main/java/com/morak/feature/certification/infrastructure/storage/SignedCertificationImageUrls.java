@@ -5,7 +5,6 @@ import com.morak.feature.certification.application.port.out.CertificationImageSt
 import com.morak.feature.certification.application.port.out.CertificationImageUrls;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,17 +27,15 @@ class SignedCertificationImageUrls implements CertificationImageUrls {
 	}
 
 	@Override
-	public List<String> resolve(List<String> imageKeys) {
+	public Map<String, String> resolveByKey(List<String> imageKeys) {
 		if (imageKeys.isEmpty() || storage.isEmpty()) {
-			return List.of();
+			return Map.of();
 		}
-		Map<String, String> urls;
 		try {
-			urls = storage.get().signDownloads(imageKeys);
+			return storage.get().signDownloads(imageKeys);
 		} catch (BusinessException exception) {
 			log.warn("Could not sign certification image URLs");
-			return List.of();
+			return Map.of();
 		}
-		return imageKeys.stream().map(urls::get).filter(Objects::nonNull).toList();
 	}
 }
