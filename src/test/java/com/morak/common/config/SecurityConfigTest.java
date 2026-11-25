@@ -363,7 +363,10 @@ class SecurityConfigTest {
 						.content("{\"nickname\":\"NewName\",\"bio\":\"소개\",\"interests\":[\"READING\"]}"))
 				.andExpect(status().isOk())
 				.andExpect(header().string("Cache-Control", "no-store"))
-				.andExpect(jsonPath("$.data.nickname").value("NewName"));
+				.andExpect(jsonPath("$.data.nickname").value("NewName"))
+				.andExpect(jsonPath("$.data.bio").value("소개"))
+				.andExpect(jsonPath("$.data.profileLinkUrl").doesNotExist())
+				.andExpect(jsonPath("$.data.interests[0]").value("READING"));
 		assertEquals("소개", user.getBio());
 		assertEquals(Set.of("READING"), ReflectionTestUtils.getField(user, "interests"));
 		verify(userRepository).flushOnboarding();
