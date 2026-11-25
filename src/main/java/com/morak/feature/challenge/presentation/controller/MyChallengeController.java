@@ -9,6 +9,7 @@ import com.morak.feature.challenge.application.dto.result.MyChallengePage;
 import com.morak.feature.challenge.application.service.ReadMyChallengesService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,6 +23,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 /** 로그인한 사용자의 챌린지 목록. 경로는 사용자 리소스 아래지만 응답이 챌린지 카드라 챌린지 도메인이 맡는다. */
 @RestController
 @RequestMapping("/users/me")
+@Tag(name = "내 챌린지", description = "홈·보관함의 내 챌린지 목록 API")
 @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public class MyChallengeController {
 
