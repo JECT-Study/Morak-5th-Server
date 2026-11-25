@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.morak.common.exception.BusinessException;
+import com.morak.common.image.UploadedImages;
 import com.morak.feature.auth.application.port.out.ServiceTokenIssuer;
 import com.morak.feature.auth.domain.vo.AuthUserId;
 import com.morak.feature.challenge.application.dto.command.CreateChallengeCommand;
@@ -194,7 +195,7 @@ class CreateChallengeTransactionIntegrationTest {
 
 	@Test
 	void rejectsOversizedAndUnsupportedCoversBeforeUploading() throws Exception {
-		createWithCover(new byte[ChallengeCoverImages.MAX_IMAGE_BYTES + 1], 0).andExpect(status().is(413));
+		createWithCover(new byte[UploadedImages.MAX_IMAGE_BYTES + 1], 0).andExpect(status().is(413));
 		createWithCover(new byte[] {1, 2, 3}, 0).andExpect(status().isBadRequest());
 		verifyNoInteractions(coverStorage);
 	}

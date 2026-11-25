@@ -76,7 +76,7 @@ public class CompleteSocialLoginService {
 			user = createUser(profile);
 		} else {
 			user = userAuthPort.updateSocialProfile(
-					new AuthUserId(account.getUserId()), profile.email(), profile.profileImageUrl())
+					new AuthUserId(account.getUserId()), profile.email())
 					.orElseThrow(() -> new BusinessException(AuthErrorCode.KAKAO_UNAVAILABLE));
 			if (!user.active() && allowRejoin) {
 				// TODO(D-3): 재가입 정책 미확정. 임시로 탈퇴 계정 연결을 끊고 새 사용자로 가입시킨다.

@@ -3,6 +3,7 @@ package com.morak.feature.challenge.presentation.controller;
 import com.morak.common.config.OpenApiConfig;
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
+import com.morak.common.image.UploadedImages;
 import com.morak.common.response.ApiResponse;
 import com.morak.feature.auth.application.dto.result.LoginUser;
 import com.morak.feature.challenge.application.dto.query.ListChallengesQuery;
@@ -207,7 +208,7 @@ public class ChallengeController {
 			throw new BusinessException(ChallengeErrorCode.INVALID_COVER_IMAGE);
 		}
 		MultipartFile photo = photos.getFirst();
-		if (photo.getSize() > ChallengeCoverImages.MAX_IMAGE_BYTES) {
+		if (photo.getSize() > UploadedImages.MAX_IMAGE_BYTES) {
 			throw new BusinessException(ChallengeErrorCode.COVER_IMAGE_TOO_LARGE);
 		}
 		try {

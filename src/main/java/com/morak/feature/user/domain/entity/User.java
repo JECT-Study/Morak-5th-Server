@@ -127,6 +127,13 @@ public class User extends BaseEntity {
 		applyProfile(profile);
 	}
 
+	/** @return 바꾸기 전 사진 URL. 직접 올린 사진이면 호출자가 저장소에서 지운다 */
+	public String changeProfileImage(String profileImageUrl) {
+		String previous = this.profileImageUrl;
+		this.profileImageUrl = profileImageUrl;
+		return previous;
+	}
+
 	private void applyProfile(OnboardingProfile profile) {
 		nickname = profile.nickname().value();
 		bio = profile.bio();
@@ -154,12 +161,10 @@ public class User extends BaseEntity {
 		deletedAt = now;
 	}
 
-	public void updateSocialProfile(String email, String profileImageUrl) {
+	/** 프로필 사진은 가입 때만 소셜 사진으로 채운다. 이후 로그인은 직접 올린 사진을 덮어쓰지 않는다(D-33). */
+	public void updateSocialProfile(String email) {
 		if (email != null && !email.isBlank()) {
 			this.email = email;
-		}
-		if (profileImageUrl != null && !profileImageUrl.isBlank()) {
-			this.profileImageUrl = profileImageUrl;
 		}
 	}
 }

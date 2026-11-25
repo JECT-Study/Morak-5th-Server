@@ -14,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** 회원 탈퇴. 위키 §4.1 [제안, D-3]. */
 @Service
@@ -25,13 +27,15 @@ public class WithdrawUserService {
 	private final OngoingParticipationReader participations;
 	private final LoginSessionRevoker sessions;
 	private final Clock clock;
+	private final ProfileImageService profileImages;
 
 	public WithdrawUserService(UserRepository users, OngoingParticipationReader participations,
-			LoginSessionRevoker sessions, Clock clock) {
+			LoginSessionRevoker sessions, Clock clock, ProfileImageService profileImages) {
 		this.users = users;
 		this.participations = participations;
 		this.sessions = sessions;
 		this.clock = clock;
+		this.profileImages = profileImages;
 	}
 
 	/**
@@ -53,6 +57,22 @@ public class WithdrawUserService {
 		// TODO(D-3): 승인 대기(PENDING) 신청, 포인트 잔액, 재가입 정책은 PM 확인 전이다. 지금은 건드리지 않는다.
 		LocalDateTime now = LocalDateTime.now(clock);
 		sessions.revokeAll(userId.value(), now);
+		String profileImageUrl = user.getProfileImageUrl();
 		user.withdraw(now);
+		deleteUploadedImageAfterCommit(profileImageUrl);
+	}
+
+	/** 공개 버킷이라 DB에서 URL만 지우면 사진이 계속 열린다. 커밋된 뒤에만 지운다(D-33). */
+	private void deleteUploadedImageAfterCommit(String url) {
+		if (url == null) {
+			return;
+		}
+		TransactionSynchronizationManager.registerSynchronization(
+				new TransactionSynchronization() {
+					@Override
+					public void afterCommit() {
+						profileImages.deleteUploadedImage(url);
+					}
+				});
 	}
 }

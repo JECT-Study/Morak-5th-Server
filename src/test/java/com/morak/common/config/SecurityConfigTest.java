@@ -8,6 +8,7 @@ import com.morak.feature.auth.infrastructure.security.LoginUserJwtConverter;
 import com.morak.feature.auth.infrastructure.user.UserAuthAdapter;
 import com.morak.feature.auth.infrastructure.token.ServiceTokenProvider;
 import com.morak.feature.user.application.port.out.SignupPointGranter;
+import com.morak.feature.user.application.service.ProfileImageService;
 import com.morak.feature.user.application.service.UserService;
 import com.morak.feature.user.domain.entity.User;
 import com.morak.feature.user.application.service.WithdrawUserService;
@@ -72,6 +73,9 @@ class SecurityConfigTest {
 
 	@MockitoBean
 	private WithdrawUserService withdrawUserService;
+
+	@MockitoBean
+	private ProfileImageService profileImageService;
 
 	@MockitoBean
 	private SignupPointGranter signupPointGranter;
