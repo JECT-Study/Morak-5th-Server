@@ -38,7 +38,7 @@ public final class CertificationReviewView {
 	 * @param submitterRole HOST(방장) / DEPUTY(부방장) / MEMBER(멤버)
 	 * @param commonMission 챌린지 공통 미션
 	 * @param verificationRules 개설 시 정한 인증 방법·규칙
-	 * @param imageUrls 원본 사진 주소. 사진 저장소 주소가 설정되지 않았으면 비어 있다
+	 * @param imageUrls 원본 사진 서명 주소(300초). 저장소가 설정되지 않았거나 서명에 실패하면 비어 있다
 	 * @param judge 처리된 인증만 채워진다(처리 운영진·시각·거절 사유)
 	 */
 	public record Detail(
