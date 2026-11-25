@@ -75,7 +75,7 @@ public class CertificationReviewService {
 		return store.findChallengeOptions();
 	}
 
-	@Transactional(readOnly = true)
+	// 사진 서명(Supabase 호출) 동안 DB 연결을 쥐지 않으려고 트랜잭션을 두지 않는다. 제출된 인증의 사진은 바뀌지 않아 두 조회가 따로 읽어도 된다.
 	public Detail detail(long certificationId) {
 		return toDetail(find(certificationId));
 	}
