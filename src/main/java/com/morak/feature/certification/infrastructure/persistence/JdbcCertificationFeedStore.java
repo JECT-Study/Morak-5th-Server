@@ -19,9 +19,13 @@ class JdbcCertificationFeedStore implements CertificationFeedStore {
 	}
 
 	@Override
-	public List<FeedRow> find(long challengeId, LocalDate certDate, long viewerParticipationId) {
+	public List<FeedRow> find(long challengeId, LocalDate certDate, long viewerParticipationId, long viewerUserId) {
 		return jdbc.sql("""
-				SELECT c.id, c.participation_id, c.status, c.submitted_at, ci.image_key
+				SELECT c.id, c.participation_id, c.status, c.submitted_at, ci.image_key,
+					(SELECT COUNT(*) FROM morak.certification_reaction r
+						WHERE r.certification_id = c.id AND r.reaction_type = 'LIKE') AS like_count,
+					EXISTS (SELECT 1 FROM morak.certification_reaction r
+						WHERE r.certification_id = c.id AND r.reaction_type = 'LIKE' AND r.user_id = :viewerUser) AS liked
 				FROM morak.certification c
 				LEFT JOIN morak.certification_image ci ON ci.certification_id = c.id AND ci.sort_order = 0
 				WHERE c.challenge_id = :challengeId AND c.cert_date = :certDate
@@ -32,10 +36,12 @@ class JdbcCertificationFeedStore implements CertificationFeedStore {
 				.param("challengeId", challengeId)
 				.param("certDate", certDate)
 				.param("viewer", viewerParticipationId)
+				.param("viewerUser", viewerUserId)
 				.query((rs, rowNum) -> {
 					LocalDateTime submittedAt = rs.getObject("submitted_at", LocalDateTime.class);
 					return new FeedRow(rs.getLong("id"), rs.getLong("participation_id"), rs.getString("status"),
-							submittedAt == null ? null : submittedAt.toInstant(ZoneOffset.UTC), rs.getString("image_key"));
+							submittedAt == null ? null : submittedAt.toInstant(ZoneOffset.UTC), rs.getString("image_key"),
+							rs.getInt("like_count"), rs.getBoolean("liked"));
 				})
 				.list();
 	}

@@ -15,7 +15,9 @@ public enum CertificationErrorCode implements ErrorCode {
 	INVALID_IMAGE(HttpStatus.BAD_REQUEST, "JPEG, PNG, WebP 사진을 선택해 주세요."),
 	IMAGE_TOO_LARGE(HttpStatus.valueOf(413), "인증 사진은 5MB 이하로 줄여 주세요."),
 	IMAGE_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 처리할 수 없습니다. 다시 시도해 주세요."),
-	FEED_NOT_MEMBER(HttpStatus.FORBIDDEN, "참여한 챌린지의 인증만 볼 수 있습니다.");
+	FEED_NOT_MEMBER(HttpStatus.FORBIDDEN, "참여한 챌린지의 인증만 볼 수 있습니다."),
+	LIKE_NOT_MEMBER(HttpStatus.FORBIDDEN, "참여한 챌린지의 인증에만 좋아요를 누를 수 있습니다."),
+	LIKE_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "좋아요를 누를 수 있는 인증을 찾을 수 없습니다.");
 
 	private final HttpStatus status;
 	private final String message;

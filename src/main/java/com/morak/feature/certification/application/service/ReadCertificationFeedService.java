@@ -62,7 +62,7 @@ public class ReadCertificationFeedService {
 				});
 		LocalDate certDate = date == null ? LocalDate.now(clock.withZone(KST)) : date;
 
-		List<FeedRow> rows = store.find(challengeId, certDate, viewer.participationId());
+		List<FeedRow> rows = store.find(challengeId, certDate, viewer.participationId(), userId);
 		Map<Long, Submitter> submitters = targets.findSubmitters(
 				rows.stream().map(FeedRow::participationId).distinct().toList());
 		Map<String, String> urls = imageUrls.resolveByKey(
@@ -75,7 +75,7 @@ public class ReadCertificationFeedService {
 					return new CertificationFeed.Item(row.certificationId(), submitter.userId(), submitter.nickname(),
 							submitter.profileImageUrl(), submitter.role(), row.status(), row.submittedAt(),
 							row.imageKey() == null ? null : urls.get(row.imageKey()),
-							row.participationId() == viewer.participationId());
+							row.participationId() == viewer.participationId(), row.likeCount(), row.liked());
 				})
 				.toList();
 		return new CertificationFeed(certDate, items);
