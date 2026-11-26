@@ -123,6 +123,17 @@ class ReadChallengeServiceTest {
 	}
 
 	@Test
+	void findsChallengeByUppercaseAlphanumericInviteCodeWithoutCountingFailure() {
+		when(challenges.findByInviteCode("AB12CZ")).thenReturn(Optional.of(challenge(ChallengeVisibility.PUBLIC, 20L)));
+		when(participations.findStatus(10L, 30L)).thenReturn(Optional.empty());
+
+		var result = service.getByInviteCode("AB12CZ", 30L);
+
+		assertEquals(10L, result.id());
+		verify(attemptLimiter).release(30L, false);
+	}
+
+	@Test
 	void showsMyStatusWhenEnteringByInviteCode() {
 		when(challenges.findByInviteCode("123456")).thenReturn(Optional.of(challenge(ChallengeVisibility.PUBLIC, 20L)));
 		when(participations.findStatus(10L, 30L)).thenReturn(Optional.of("PENDING"));

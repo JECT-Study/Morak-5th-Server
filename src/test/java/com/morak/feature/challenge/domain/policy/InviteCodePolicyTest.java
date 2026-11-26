@@ -20,14 +20,17 @@ class InviteCodePolicyTest {
 	}
 
 	@Test
-	void padsSmallNumbersWithZeros() {
-		Random zero = new Random() {
-			@Override
-			public int nextInt(int bound) {
-				return 42;
-			}
-		};
-		assertEquals("000042", InviteCodePolicy.generate(zero));
+	void generatesFromDigitsAndUppercaseLetters() {
+		assertEquals("000000", InviteCodePolicy.generate(fixed(0)));
+		assertEquals("999999", InviteCodePolicy.generate(fixed(9)));
+		assertEquals("AAAAAA", InviteCodePolicy.generate(fixed(10)));
+		assertEquals("ZZZZZZ", InviteCodePolicy.generate(fixed(35)));
+	}
+
+	@Test
+	void acceptsUppercaseAlphanumericAndExistingNumericCodes() {
+		assertTrue(InviteCodePolicy.matchesFormat("AB12CZ"));
+		assertTrue(InviteCodePolicy.matchesFormat("004213"));
 	}
 
 	@Test
@@ -36,6 +39,18 @@ class InviteCodePolicyTest {
 		assertFalse(InviteCodePolicy.matchesFormat("12345"));
 		assertFalse(InviteCodePolicy.matchesFormat("1234567"));
 		assertFalse(InviteCodePolicy.matchesFormat("12a456"));
+		assertFalse(InviteCodePolicy.matchesFormat("ab12cz"));
 		assertFalse(InviteCodePolicy.matchesFormat("12345 "));
+		assertFalse(InviteCodePolicy.matchesFormat("12-456"));
+	}
+
+	private static Random fixed(int value) {
+		return new Random() {
+			@Override
+			public int nextInt(int bound) {
+				assertEquals(36, bound);
+				return value;
+			}
+		};
 	}
 }
