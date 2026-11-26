@@ -1,8 +1,9 @@
 package com.morak.feature.certification.infrastructure.persistence;
 
-import com.morak.feature.certification.application.dto.result.CertificationReviewView.ChallengeOption;
+import com.morak.feature.certification.application.dto.result.CertificationReviewView.ChallengeSummary;
 import com.morak.feature.certification.application.dto.result.CertificationReviewView.Item;
 import com.morak.feature.certification.application.port.out.CertificationReviewStore;
+import com.morak.feature.certification.domain.vo.ReviewDeadline;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Component;
 class JdbcCertificationReviewStore implements CertificationReviewStore {
 
 	private static final String REVIEWABLE = "ch.point_amount > 0";
+	/** 검수 마감 = 인증일 다음 날 12:00 KST = 03:00 UTC. ReviewDeadline과 같은 값이다. */
+	private static final String OVERDUE = "c.status = 'PENDING' AND ((c.cert_date + 1)::timestamp + interval '3 hours') < :now";
 
 	private final JdbcClient jdbc;
 
@@ -42,7 +45,8 @@ class JdbcCertificationReviewStore implements CertificationReviewStore {
 		return bind(spec, filter).param("limit", limit)
 				.query((rs, rowNum) -> new Item(
 						rs.getLong("id"), rs.getLong("challenge_id"), rs.getString("title"), rs.getString("nickname"),
-						rs.getObject("cert_date", LocalDate.class), instant(rs, "submitted_at"), rs.getString("status")))
+						rs.getObject("cert_date", LocalDate.class), instant(rs, "submitted_at"), rs.getString("status"),
+						ReviewDeadline.of(rs.getObject("cert_date", LocalDate.class))))
 				.list();
 	}
 
@@ -57,13 +61,36 @@ class JdbcCertificationReviewStore implements CertificationReviewStore {
 	}
 
 	@Override
-	public List<ChallengeOption> findChallengeOptions() {
+	public int countOverdue(Instant now) {
 		return jdbc.sql("""
-				SELECT ch.id, ch.title FROM morak.challenge ch
-				WHERE %s AND EXISTS (SELECT 1 FROM morak.certification c WHERE c.challenge_id = ch.id)
+				SELECT COUNT(*) FROM morak.certification c
+				JOIN morak.challenge ch ON ch.id = c.challenge_id
+				WHERE %s AND %s
+				""".formatted(REVIEWABLE, OVERDUE))
+				.param("now", LocalDateTime.ofInstant(now, ZoneOffset.UTC))
+				.query(Integer.class)
+				.single();
+	}
+
+	@Override
+	public List<ChallengeSummary> findChallengeSummaries(Instant now) {
+		return jdbc.sql("""
+				SELECT ch.id, ch.title,
+					COUNT(*) FILTER (WHERE c.status = 'PENDING') AS pending,
+					COUNT(*) FILTER (WHERE c.status IN ('APPROVED', 'AUTO_APPROVED')) AS approved,
+					COUNT(*) FILTER (WHERE c.status = 'REJECTED') AS rejected,
+					COUNT(*) FILTER (WHERE %s) AS overdue
+				FROM morak.challenge ch
+				JOIN morak.certification c ON c.challenge_id = ch.id
+					AND c.status IN ('PENDING', 'APPROVED', 'AUTO_APPROVED', 'REJECTED')
+				WHERE %s
+				GROUP BY ch.id, ch.title
 				ORDER BY ch.title, ch.id
-				""".formatted(REVIEWABLE))
-				.query((rs, rowNum) -> new ChallengeOption(rs.getLong("id"), rs.getString("title")))
+				""".formatted(OVERDUE, REVIEWABLE))
+				.param("now", LocalDateTime.ofInstant(now, ZoneOffset.UTC))
+				.query((rs, rowNum) -> new ChallengeSummary(
+						rs.getLong("id"), rs.getString("title"), rs.getInt("pending"), rs.getInt("approved"),
+						rs.getInt("rejected"), rs.getInt("overdue")))
 				.list();
 	}
 
