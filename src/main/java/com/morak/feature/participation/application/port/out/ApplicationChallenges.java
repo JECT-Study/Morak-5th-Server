@@ -1,5 +1,6 @@
 package com.morak.feature.participation.application.port.out;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 /** 지원·승인이 챌린지 도메인에서 읽고 바꾸는 것들. */
@@ -16,6 +17,9 @@ public interface ApplicationChallenges {
 
 	/** 방장·부방장 승계로 챌린지의 방장을 바꾼다. 호출한 쪽의 트랜잭션에 참여한다. */
 	void changeOwner(long challengeId, long newOwnerUserId);
+
+	/** 조기 종료로 챌린지 종료일을 오늘로 바꾸고 FINALIZING으로 둔다. 호출한 쪽의 트랜잭션에 참여한다. */
+	void endEarly(long challengeId, LocalDate today);
 
 	/** 동시 참여 한도 안에서 더 참여할 수 있는지. 위키 §4.3, O-17. */
 	boolean canJoinMore(long userId);

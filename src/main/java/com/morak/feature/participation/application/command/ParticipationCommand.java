@@ -1,6 +1,8 @@
 package com.morak.feature.participation.application.command;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -36,6 +38,28 @@ public interface ParticipationCommand {
 	 * {@link RoleHandOver#successorMissing()}으로 알린다.
 	 */
 	RoleHandOver handOverRoles(long challengeId, long departingParticipationId);
+
+	/**
+	 * 실패 누적으로 퇴장시킨다(위키 §4.4 퇴장·조기 종료, §4.9 ⑥). 퇴장 기준 판단은 호출한 쪽이 한다.
+	 *
+	 * <ul>
+	 *   <li>챌린지를 잠근 뒤 참여 중(ACTIVE)인 대상을 한 명씩 승계({@link #handOverRoles}) 후 EXPELLED로 바꾼다.
+	 *       이미 ACTIVE가 아닌 대상은 건너뛰므로 여러 번 호출해도 결과가 같다.
+	 *   <li>퇴장 후 공개 챌린지에 참여 중인 사람이 2명 이하면 같은 트랜잭션에서 남은 사람을 EARLY_ENDED로 바꾸고
+	 *       챌린지를 조기 종료한다(종료일 = {@code today}, FINALIZING).
+	 *   <li>포인트는 건드리지 않는다(퇴장자 전액 차감은 정산 몫, §4.5).
+	 * </ul>
+	 */
+	ExpelOutcome expel(long challengeId, Collection<Long> participationIds, LocalDate today, Instant now);
+
+	/**
+	 * 퇴장 결과.
+	 *
+	 * @param earlyEndedUserIds 조기 종료로 EARLY_ENDED가 된 남은 참여자. 조기 종료하지 않았으면 비어 있다
+	 */
+	record ExpelOutcome(List<ExpelledMember> expelled, List<Long> earlyEndedUserIds) {}
+
+	record ExpelledMember(long participationId, long userId) {}
 
 	/**
 	 * 시작 전 폐기에 대비해 포인트가 걸린 참가자(PENDING·ACTIVE)의 포인트 계정을 사용자 번호 오름차순으로 잠근다.

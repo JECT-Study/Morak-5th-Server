@@ -1,11 +1,12 @@
 package com.morak.feature.challenge.application.command;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 /**
  * 다른 모듈(참가 등)에 공개하는 챌린지 변경 API.
  *
- * <p>{@link #lockForUpdate}, {@link #acceptMember}, {@link #changeOwner}는 호출한 쪽의 트랜잭션에 참여한다. 트랜잭션 없이 호출하면 예외가 난다.
+ * <p>{@link #lockForUpdate}, {@link #acceptMember}, {@link #changeOwner}, {@link #endEarly}는 호출한 쪽의 트랜잭션에 참여한다. 트랜잭션 없이 호출하면 예외가 난다.
  */
 public interface ChallengeCommand {
 
@@ -20,6 +21,9 @@ public interface ChallengeCommand {
 
 	/** 방장·부방장 승계로 챌린지의 방장(owner)을 바꾼다. 챌린지가 없으면 예외. */
 	void changeOwner(long challengeId, long newOwnerUserId);
+
+	/** 조기 종료로 종료일을 오늘로 바꾸고 FINALIZING으로 둔다(위키 §4.4). 진행 중이 아니면 예외. 호출한 쪽의 트랜잭션에 참여한다. */
+	void endEarly(long challengeId, LocalDate today);
 
 	/**
 	 * 지원·승인 판단에 필요한 챌린지 정보. visibility, status는 위키 §5 enum 문자열 그대로다.

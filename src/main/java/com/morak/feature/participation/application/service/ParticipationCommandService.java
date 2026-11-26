@@ -13,6 +13,9 @@ import com.morak.feature.participation.domain.exception.ParticipationErrorCode;
 import com.morak.feature.participation.domain.repository.ParticipationRepository;
 import com.morak.feature.participation.domain.repository.ParticipationResultRepository;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 class ParticipationCommandService implements ParticipationCommand {
 
 	private static final Logger log = LoggerFactory.getLogger(ParticipationCommandService.class);
+	/** 공개 챌린지는 2명만 남으면 조기 종료한다(위키 §4.4). */
+	static final int EARLY_END_MAX_REMAINING = 2;
 
 	private final ParticipationRepository participations;
 	private final ParticipationResultRepository results;
@@ -199,6 +204,43 @@ class ParticipationCommandService implements ParticipationCommand {
 	/** 남은 참여자 중 합류 순서가 가장 빠른 일반 참가자. 없으면 null. */
 	private static Participation firstMember(List<Participation> remaining) {
 		return remaining.stream().filter(p -> p.getRole() == ParticipationRole.MEMBER).findFirst().orElse(null);
+	}
+
+	/**
+	 * 한 명씩 승계한 뒤 퇴장시켜, 같은 날 방장·부방장이 함께 퇴장해도 다음 사람의 승계가 앞사람의 결과를 본다.
+	 * 승계·남은 인원 조회는 JPQL이라 앞서 바꾼 상태가 먼저 반영된다(flush). TODO(D-45): 공개 챌린지가 한 번에 1명 이하로
+	 * 줄어도 조기 종료로 처리하는 것과, 비공개에서 1명만 남는 경우의 폐지(D-37 ②)를 아직 하지 않는 것은 제안이다.
+	 */
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public ExpelOutcome expel(long challengeId, Collection<Long> participationIds, LocalDate today, Instant now) {
+		ApplicationChallenges.ChallengeInfo challenge = challenges.lock(challengeId)
+				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
+		Set<Long> targets = new HashSet<>(participationIds);
+		List<ExpelledMember> expelled = new ArrayList<>();
+		for (Participation participation : participations.findActiveByChallengeForUpdate(challengeId)) {
+			if (!targets.contains(participation.getId())) {
+				continue;
+			}
+			handOverRoles(challengeId, participation.getId());
+			participation.expel(now);
+			expelled.add(new ExpelledMember(participation.getId(), participation.getUserId()));
+		}
+		if (expelled.size() < targets.size()) {
+			log.info("퇴장 대상 일부 건너뜀(ACTIVE 아님): challengeId={}, targets={}, expelled={}",
+					challengeId, targets, expelled);
+		}
+		if (expelled.isEmpty() || challenge.isPrivate()) {
+			return new ExpelOutcome(expelled, List.of());
+		}
+		List<Participation> remaining = participations.findActiveByChallengeForUpdate(challengeId);
+		if (remaining.size() > EARLY_END_MAX_REMAINING) {
+			return new ExpelOutcome(expelled, List.of());
+		}
+		remaining.forEach(p -> p.endEarly(now));
+		challenges.endEarly(challengeId, today);
+		log.info("공개 챌린지 조기 종료: challengeId={}, remaining={}", challengeId, remaining.size());
+		return new ExpelOutcome(expelled, remaining.stream().map(Participation::getUserId).toList());
 	}
 
 	/** TODO(D-28): 반환 포인트 컬럼 없이 저장한다(반환은 원장 SETTLE에 남는다). 연속 인증 일수는 호출한 쪽 값을 그대로 쓴다. */

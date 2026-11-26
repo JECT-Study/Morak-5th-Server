@@ -27,6 +27,8 @@ public class Participation {
 	private static final Logger log = LoggerFactory.getLogger(Participation.class);
 
 	public static final String END_REASON_DISCARDED = "DISCARDED";
+	public static final String END_REASON_FAIL_LIMIT = "FAIL_LIMIT";
+	public static final String END_REASON_EARLY_END = "EARLY_END";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -61,7 +63,7 @@ public class Participation {
 	@Column(name = "invalid_confirmed_at")
 	private LocalDateTime invalidConfirmedAt;
 
-	/** 참여가 끝난 시각(UTC). 시작 전 폐기 때 기록한다. */
+	/** 참여가 끝난 시각(UTC). 시작 전 폐기·퇴장·조기 종료 때 기록한다. */
 	@Column(name = "ended_at")
 	private LocalDateTime endedAt;
 
@@ -169,6 +171,26 @@ public class Participation {
 		}
 		endedAt = toUtc(now);
 		endReason = END_REASON_DISCARDED;
+	}
+
+	/** 개인 실패 누적으로 퇴장한다(위키 §4.4 퇴장). 참여 중(ACTIVE)에서만 가능하다. 포인트 차감은 정산이 한다. */
+	public void expel(Instant now) {
+		end(ParticipationStatus.EXPELLED, END_REASON_FAIL_LIMIT, now);
+	}
+
+	/** 공개 챌린지가 2명만 남아 조기 종료된다(위키 §4.4 조기 종료). 참여 중(ACTIVE)에서만 가능하다. */
+	public void endEarly(Instant now) {
+		end(ParticipationStatus.EARLY_ENDED, END_REASON_EARLY_END, now);
+	}
+
+	private void end(ParticipationStatus to, String reason, Instant now) {
+		if (status != ParticipationStatus.ACTIVE) {
+			log.warn("참가 상태 전이 거절: participationId={}, from={}, to={}", id, status, to);
+			throw new BusinessException(ParticipationErrorCode.INVALID_STATUS_TRANSITION);
+		}
+		status = to;
+		endedAt = toUtc(now);
+		endReason = reason;
 	}
 
 	/** 동시 참여 한도에 걸려 대기 신청이 무효가 된다. 승인 대기 상태에서만 가능하다. */
