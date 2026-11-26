@@ -328,6 +328,93 @@ class PointServiceTest {
 		return ledger.transactions().stream().map(PointLedgerResult.Entry::id).toList();
 	}
 
+	@Test
+	void dailyLimitedGrantStopsAtLimit() {
+		for (int i = 1; i <= 5; i++) {
+			service.grantWithDailyLimit(USER, PointGrantReason.AD_REWARD, 500, "AD:" + i, 5);
+		}
+
+		BusinessException exception = assertThrows(BusinessException.class,
+				() -> service.grantWithDailyLimit(USER, PointGrantReason.AD_REWARD, 500, "AD:6", 5));
+
+		assertEquals(PointErrorCode.DAILY_GRANT_LIMIT_EXCEEDED, exception.getErrorCode());
+		assertEquals(2_500, accounts.balanceOf(USER));
+		assertEquals(5, transactions.saved.size());
+	}
+
+	@Test
+	void dailyLimitedGrantReplayAfterLimitReturnsFirstResult() {
+		PointChangeResult last = null;
+		for (int i = 1; i <= 5; i++) {
+			last = service.grantWithDailyLimit(USER, PointGrantReason.AD_REWARD, 500, "AD:" + i, 5);
+		}
+
+		PointChangeResult replay = service.grantWithDailyLimit(USER, PointGrantReason.AD_REWARD, 500, "AD:5", 5);
+
+		assertEquals(last.transactionId(), replay.transactionId());
+		assertEquals(2_500, accounts.balanceOf(USER));
+		assertEquals(5, transactions.saved.size());
+	}
+
+	@Test
+	void dailyLimitIsPerUserAndPerReason() {
+		for (int i = 1; i <= 5; i++) {
+			service.grantWithDailyLimit(USER, PointGrantReason.AD_REWARD, 500, "AD:" + i, 5);
+		}
+
+		service.grantWithDailyLimit(OTHER_USER, PointGrantReason.AD_REWARD, 500, "AD:7", 5);
+		service.grant(USER, PointGrantReason.SIGNUP_GIFT, 10_000, "SIGNUP_GIFT:10");
+
+		assertEquals(1, service.countTodayGrants(OTHER_USER, PointGrantReason.AD_REWARD));
+		assertEquals(5, service.countTodayGrants(USER, PointGrantReason.AD_REWARD));
+	}
+
+	@Test
+	void dailyLimitResetsAtKstMidnight() {
+		MutableClock clock = new MutableClock(Instant.parse("2026-11-09T14:59:59Z"));
+		PointService timed = new PointService(accounts, transactions, clock);
+		for (int i = 1; i <= 5; i++) {
+			timed.grantWithDailyLimit(USER, PointGrantReason.AD_REWARD, 500, "AD:" + i, 5);
+		}
+		assertEquals(5, timed.countTodayGrants(USER, PointGrantReason.AD_REWARD));
+		assertThrows(BusinessException.class,
+				() -> timed.grantWithDailyLimit(USER, PointGrantReason.AD_REWARD, 500, "AD:6", 5));
+
+		// UTC 15:00 = KST 다음 날 00:00
+		clock.set(Instant.parse("2026-11-09T15:00:00Z"));
+
+		assertEquals(0, timed.countTodayGrants(USER, PointGrantReason.AD_REWARD));
+		timed.grantWithDailyLimit(USER, PointGrantReason.AD_REWARD, 500, "AD:6", 5);
+		assertEquals(1, timed.countTodayGrants(USER, PointGrantReason.AD_REWARD));
+	}
+
+	@Test
+	void countTodayGrantsIsZeroWithoutAccount() {
+		assertEquals(0, service.countTodayGrants(USER, PointGrantReason.AD_REWARD));
+	}
+
+	@Test
+	void dailyLimitMustBePositive() {
+		BusinessException exception = assertThrows(BusinessException.class,
+				() -> service.grantWithDailyLimit(USER, PointGrantReason.AD_REWARD, 500, "AD:1", 0));
+
+		assertEquals(PointErrorCode.INVALID_AMOUNT, exception.getErrorCode());
+	}
+
+	/** 테스트 중에 시각을 옮길 수 있는 UTC 시계. */
+	private static class MutableClock extends Clock {
+
+		private Instant now;
+
+		MutableClock(Instant now) { this.now = now; }
+
+		void set(Instant instant) { this.now = instant; }
+
+		@Override public ZoneOffset getZone() { return ZoneOffset.UTC; }
+		@Override public Clock withZone(java.time.ZoneId zone) { return this; }
+		@Override public Instant instant() { return now; }
+	}
+
 	/** 실제 DB 락은 없다. 동시성은 통합 테스트에서 검증한다. */
 	private static class FakeAccountRepository implements PointAccountRepository {
 
@@ -400,6 +487,15 @@ class PointServiceTest {
 		@Override
 		public Optional<PointTransaction> findByIdempotencyKey(String idempotencyKey) {
 			return saved.stream().filter(t -> t.getIdempotencyKey().equals(idempotencyKey)).findFirst();
+		}
+
+		@Override
+		public long countGrants(Long accountId, PointGrantReason reason, LocalDateTime from, LocalDateTime to) {
+			return saved.stream()
+					.filter(t -> t.getAccountId().equals(accountId))
+					.filter(t -> t.getType() == PointTransactionType.GRANT && t.getReason() == reason)
+					.filter(t -> !t.getCreatedAt().isBefore(from) && t.getCreatedAt().isBefore(to))
+					.count();
 		}
 
 		@Override

@@ -12,6 +12,9 @@ import com.morak.feature.point.domain.repository.PointAccountRepository;
 import com.morak.feature.point.domain.repository.PointTransactionRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
@@ -31,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class PointService {
+
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	public static final int DEFAULT_LIMIT = 20;
 	public static final int MAX_LIMIT = 100;
@@ -58,6 +63,45 @@ public class PointService {
 				(accountId, now) -> accountRepository.increase(accountId, amount, now),
 				(accountId, balanceAfter, now) -> PointTransaction.grant(
 						accountId, reason, amount, balanceAfter, idempotencyKey, now));
+	}
+
+	/**
+	 * 하루(KST 자정 기준) 지급 횟수 한도가 있는 포인트 지급. 같은 idempotencyKey로 다시 호출하면 한도와 상관없이 처음 결과를 돌려준다.
+	 * 계정 행을 잠근 뒤 오늘 같은 사유의 지급 건수를 세므로, 같은 유저의 동시 요청도 한도를 넘지 못한다.
+	 * 한도에 이미 도달했으면 DAILY_GRANT_LIMIT_EXCEEDED.
+	 */
+	@Transactional
+	public PointChangeResult grantWithDailyLimit(
+			Long userId, PointGrantReason reason, long amount, String idempotencyKey, int dailyLimit) {
+		Command command = new Command(PointTransactionType.GRANT, userId, amount, idempotencyKey);
+		require(command, "userId", userId);
+		require(command, "reason", reason);
+		validateIdempotencyKey(command);
+		if (dailyLimit < 1) {
+			throw rejected(PointErrorCode.INVALID_AMOUNT, command.describe() + " dailyLimit=" + dailyLimit);
+		}
+		return change(
+				command,
+				(accountId, now) -> {
+					long granted = countGrantsOfKstDay(accountId, reason, now);
+					if (granted >= dailyLimit) {
+						throw rejected(PointErrorCode.DAILY_GRANT_LIMIT_EXCEEDED, command.describe()
+								+ " accountId=" + accountId + " reason=" + reason
+								+ " granted=" + granted + " dailyLimit=" + dailyLimit);
+					}
+					return accountRepository.increase(accountId, amount, now);
+				},
+				(accountId, balanceAfter, now) -> PointTransaction.grant(
+						accountId, reason, amount, balanceAfter, idempotencyKey, now));
+	}
+
+	/** 오늘(KST) 지급받은 횟수. 계정을 잠그지 않는 조회라 안내용이고, 한도 판단은 grantWithDailyLimit이 한다. */
+	@Transactional(readOnly = true)
+	public int countTodayGrants(Long userId, PointGrantReason reason) {
+		LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
+		return accountRepository.findByUserId(userId)
+				.map(account -> (int) countGrantsOfKstDay(account.getId(), reason, now))
+				.orElse(0);
 	}
 
 	/**
@@ -189,6 +233,15 @@ public class PointService {
 					"같은 idempotencyKey가 동시에 저장됨 " + command.describe() + " accountId=" + transaction.getAccountId(),
 					exception);
 		}
+	}
+
+	/** now(UTC)가 속한 KST 하루([00:00, 다음 날 00:00))를 UTC로 바꿔 해당 사유의 지급 건수를 센다. */
+	private long countGrantsOfKstDay(Long accountId, PointGrantReason reason, LocalDateTime nowUtc) {
+		ZonedDateTime kstNow = nowUtc.atZone(ZoneOffset.UTC).withZoneSameInstant(KST);
+		LocalDateTime from = kstNow.toLocalDate().atStartOfDay(KST).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+		LocalDateTime to = kstNow.toLocalDate().plusDays(1).atStartOfDay(KST).withZoneSameInstant(ZoneOffset.UTC)
+				.toLocalDateTime();
+		return transactionRepository.countGrants(accountId, reason, from, to);
 	}
 
 	private void requireRefundableDeposit(Command command, Long accountId, Long participationId) {
