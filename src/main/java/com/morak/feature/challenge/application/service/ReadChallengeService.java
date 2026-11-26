@@ -31,7 +31,7 @@ import org.springframework.stereotype.Service;
 public class ReadChallengeService {
 
 	private static final int MAX_PAGE_SIZE = 100;
-	// TODO(D-38): FINALIZING을 종료로 보는 것은 PM 확인 전 제안값이다.
+	// TODO(D-39): FINALIZING을 종료로 보는 것은 PM 확인 전 제안값이다.
 	private static final Set<ChallengeStatus> ENDED_STATUSES =
 			EnumSet.of(ChallengeStatus.FINALIZING, ChallengeStatus.ENDED, ChallengeStatus.DISCARDED);
 	private final ChallengeReadQuery challenges;
@@ -81,7 +81,7 @@ public class ReadChallengeService {
 	 * 종료·폐기된 챌린지는 상세 대신 "이미 종료된 챌린지입니다"로 구분한다. FINALIZING도 종료로 본다.
 	 */
 	public ChallengeView getByInviteCode(String inviteCode, long userId) {
-		// 무차별 대입 방지(D-39): 조회 전에 시도 한 칸을 선점하고, 유효하지 않은 코드만 실패로 센다.
+		// 무차별 대입 방지(D-40): 조회 전에 시도 한 칸을 선점하고, 유효하지 않은 코드만 실패로 센다.
 		// 한도를 넘으면 맞는 코드도 잠시 막는다.
 		var decision = attemptLimiter.tryAcquire(userId);
 		if (!decision.allowed()) {

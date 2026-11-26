@@ -3,7 +3,7 @@ package com.morak.feature.challenge.application.port.out;
 import java.time.Duration;
 
 /**
- * 초대 코드 무차별 대입을 막는 사용자별 실패 횟수 제한(위키 §9 O-24, D-39).
+ * 초대 코드 무차별 대입을 막는 사용자별 실패 횟수 제한(위키 §9 O-24, D-40).
  * 조회 전에 {@link #tryAcquire}로 시도 한 칸을 선점하고, 조회가 끝나면 {@link #release}로 결과를 알린다.
  * 선점한 시도도 한도에 포함하므로 동시에 몰린 요청이 한도를 넘어 조회되지 않는다.
  */

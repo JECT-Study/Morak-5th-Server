@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * 실패 횟수와 진행 중인 조회 수의 합이 한도에 닿으면 새 조회를 받지 않아, 동시에 몰린 요청도 한도를 넘지 못한다.
  * 채팅 티켓 저장소처럼 서버 1대 전제다. 서버를 여러 대로 늘릴 때는 Redis 구현체로 교체한다.
  */
-// TODO(D-39): 실패 10회 / 10분 창 / 10분 차단은 PM 확인 전 제안값이다.
+// TODO(D-40): 실패 10회 / 10분 창 / 10분 차단은 PM 확인 전 제안값이다.
 @Component
 public class InMemoryInviteCodeAttemptLimiter implements InviteCodeAttemptLimiter {
 

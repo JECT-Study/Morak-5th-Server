@@ -27,7 +27,7 @@ public enum ChallengeErrorCode implements ErrorCode {
 	START_INTEGRATION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "챌린지 시작 처리 기능을 준비 중입니다."),
 	INVALID_INVITE_CODE(HttpStatus.NOT_FOUND, "유효하지 않은 코드입니다"),
 	ALREADY_ENDED(HttpStatus.GONE, "이미 종료된 챌린지입니다"),
-	// TODO(D-39): 문구는 PM 확인 전 제안값이다.
+	// TODO(D-40): 문구는 PM 확인 전 제안값이다.
 	INVITE_CODE_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "코드를 여러 번 잘못 입력했습니다. 잠시 후 다시 시도해 주세요.");
 
 	private final HttpStatus status;
