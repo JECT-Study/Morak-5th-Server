@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 public class ReadChallengeService {
 
 	private static final int MAX_PAGE_SIZE = 100;
+	// TODO(D-38): FINALIZING을 종료로 보는 것은 PM 확인 전 제안값이다.
 	private static final Set<ChallengeStatus> ENDED_STATUSES =
 			EnumSet.of(ChallengeStatus.FINALIZING, ChallengeStatus.ENDED, ChallengeStatus.DISCARDED);
 	private final ChallengeReadQuery challenges;

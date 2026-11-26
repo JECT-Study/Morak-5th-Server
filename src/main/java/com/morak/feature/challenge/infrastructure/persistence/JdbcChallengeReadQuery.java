@@ -17,12 +17,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class JdbcChallengeReadQuery implements ChallengeReadQuery {
 
-	private static final String DETAIL_SELECT = """
-			SELECT id, owner_user_id, title, description, visibility, category, purpose, common_mission, verification_rules,
-				expectations, status, start_date, end_date, capacity, current_count, point_amount, cover_image_key
-			FROM morak.challenge
-			""";
-
 	private final JdbcClient jdbc;
 
 	public JdbcChallengeReadQuery(JdbcClient jdbc) {
