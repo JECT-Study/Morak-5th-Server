@@ -4,6 +4,7 @@ import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.challenge.application.command.ChallengeCommand;
 import com.morak.feature.challenge.domain.entity.Challenge;
+import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -54,6 +55,24 @@ class ChallengeCommandService implements ChallengeCommand {
 		Challenge challenge = challenges.findByIdForUpdate(challengeId)
 				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
 		challenge.endEarly(today);
+	}
+
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void lockForFinalizing(long challengeId, LocalDate today) {
+		Challenge challenge = challenges.findByIdForUpdate(challengeId)
+				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
+		if (challenge.getStatus() != ChallengeStatus.FINALIZING) {
+			challenge.beginFinalizing(today); // IN_PROGRESS가 아니면 전이 위반으로 로그를 남기고 거절한다.
+		}
+	}
+
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void end(long challengeId) {
+		Challenge challenge = challenges.findByIdForUpdate(challengeId)
+				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
+		challenge.end();
 	}
 
 	private static ChallengeForApplication toInfo(Challenge challenge) {

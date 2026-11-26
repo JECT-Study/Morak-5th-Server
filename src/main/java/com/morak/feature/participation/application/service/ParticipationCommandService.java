@@ -243,6 +243,14 @@ class ParticipationCommandService implements ParticipationCommand {
 		return new ExpelOutcome(expelled, remaining.stream().map(Participation::getUserId).toList());
 	}
 
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public List<Long> completeActive(long challengeId, Instant now) {
+		List<Participation> active = participations.findActiveByChallengeForUpdate(challengeId);
+		active.forEach(p -> p.complete(now));
+		return active.stream().map(Participation::getId).toList();
+	}
+
 	/** TODO(D-28): 반환 포인트 컬럼 없이 저장한다(반환은 원장 SETTLE에 남는다). 연속 인증 일수는 호출한 쪽 값을 그대로 쓴다. */
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
