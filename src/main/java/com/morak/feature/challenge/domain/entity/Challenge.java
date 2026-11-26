@@ -217,6 +217,19 @@ public class Challenge extends BaseEntity {
 		this.startHeldOn = today;
 	}
 
+	/**
+	 * 공개 챌린지가 퇴장으로 2명만 남아 오늘 조기 종료한다(위키 §4.4 조기 종료). 종료일을 오늘로 바꾸고 결과 확정 대기(FINALIZING)로 둔다.
+	 * 진행 중(IN_PROGRESS)에서만 가능하다. 참가자 상태는 참가 도메인이 바꾼다.
+	 */
+	public void endEarly(LocalDate today) {
+		if (status != ChallengeStatus.IN_PROGRESS) {
+			log.warn("챌린지 상태 전이 거절: challengeId={}, from={}, to={}", id, status, ChallengeStatus.FINALIZING);
+			throw new BusinessException(ChallengeErrorCode.NOT_IN_PROGRESS);
+		}
+		this.endDate = today;
+		this.status = ChallengeStatus.FINALIZING;
+	}
+
 	/** 방장이 바뀐다(방장·부방장 승계). 참가자의 역할 변경은 참가 도메인이 한다. */
 	public void changeOwner(long newOwnerUserId) {
 		this.ownerUserId = newOwnerUserId;

@@ -5,6 +5,7 @@ import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.challenge.application.command.ChallengeCommand;
 import com.morak.feature.challenge.domain.entity.Challenge;
 import com.morak.feature.challenge.domain.repository.ChallengeRepository;
+import java.time.LocalDate;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -45,6 +46,14 @@ class ChallengeCommandService implements ChallengeCommand {
 		Challenge challenge = challenges.findByIdForUpdate(challengeId)
 				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
 		challenge.changeOwner(newOwnerUserId);
+	}
+
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void endEarly(long challengeId, LocalDate today) {
+		Challenge challenge = challenges.findByIdForUpdate(challengeId)
+				.orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND));
+		challenge.endEarly(today);
 	}
 
 	private static ChallengeForApplication toInfo(Challenge challenge) {

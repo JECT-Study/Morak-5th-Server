@@ -5,6 +5,7 @@ import com.morak.feature.challenge.application.command.ChallengeCommand.Challeng
 import com.morak.feature.challenge.domain.policy.ParticipationLimitPolicy;
 import com.morak.feature.participation.application.port.out.ApplicationChallenges;
 import com.morak.feature.participation.application.query.ParticipationQuery;
+import java.time.LocalDate;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
@@ -37,6 +38,11 @@ class ChallengeApplicationChallenges implements ApplicationChallenges {
 	@Override
 	public void changeOwner(long challengeId, long newOwnerUserId) {
 		challengeCommand.changeOwner(challengeId, newOwnerUserId);
+	}
+
+	@Override
+	public void endEarly(long challengeId, LocalDate today) {
+		challengeCommand.endEarly(challengeId, today);
 	}
 
 	@Override
