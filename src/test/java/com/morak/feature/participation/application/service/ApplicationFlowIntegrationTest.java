@@ -97,6 +97,8 @@ class ApplicationFlowIntegrationTest {
 		assertEquals(10_000, balance(5L));
 		assertEquals(9_000, balance(2L));
 		assertEquals(9_000, balance(3L));
+		assertEquals(List.of("PARTICIPATION_REQUESTED", "PARTICIPATION_REQUESTED", "PARTICIPATION_REQUESTED",
+				"PARTICIPATION_REQUESTED"), notificationTypes(HOST));
 		assertEquals(List.of("PARTICIPATION_APPROVED", "DEPUTY_ASSIGNED"), notificationTypes(2L));
 		assertEquals(List.of("PARTICIPATION_APPROVED"), notificationTypes(3L));
 		assertEquals(List.of("PARTICIPATION_REJECTED"), notificationTypes(4L));
@@ -161,7 +163,10 @@ class ApplicationFlowIntegrationTest {
 		assertEquals("MEMBER:PENDING", roleAndStatus(2L));
 		assertEquals("MEMBER:PENDING", roleAndStatus(3L));
 		assertEquals(9_000, balance(3L));
-		assertEquals(0L, jdbc.sql("SELECT count(*) FROM morak.notification").query(Long.class).single());
+		// 신청 때 방장에게 간 #13은 남고, 승인 트랜잭션이 만든 알림(#1·#2·#8)은 롤백돼 없어야 한다.
+		assertEquals(List.of("PARTICIPATION_REQUESTED", "PARTICIPATION_REQUESTED"), notificationTypes(HOST));
+		assertEquals(0L, jdbc.sql("SELECT count(*) FROM morak.notification WHERE recipient_user_id <> :host")
+				.param("host", HOST).query(Long.class).single());
 	}
 
 	@Test

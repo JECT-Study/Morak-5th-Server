@@ -5,6 +5,7 @@ import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.participation.application.port.out.ApplicantPoints;
 import com.morak.feature.participation.application.port.out.ApplicationChallenges;
 import com.morak.feature.participation.application.port.out.ApplicationChallenges.ChallengeInfo;
+import com.morak.feature.participation.application.port.out.ApplicationNotifier;
 import com.morak.feature.participation.domain.entity.Participation;
 import com.morak.feature.participation.domain.exception.ParticipationErrorCode;
 import com.morak.feature.participation.domain.repository.ParticipationRepository;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 챌린지 참가 지원(위키 §4.3). 포인트가 있는 챌린지는 지원과 동시에 포인트를 건다.
  * 정원이 다 찬 챌린지(모집 마감)에는 지원할 수 없다. 정원이 남아 있는 동안은 승인 대기 인원이 정원을 넘을 수 있으므로
  * 승인 시점에 정원을 한 번 더 확인한다.
+ * 신청이 접수되면 방장에게 알림 #13을 보낸다(D-38). 알림이 실패하면 신청도 롤백한다.
  * 락 순서는 포인트 계정 → 챌린지 → 참가자다.
  */
 @Service
@@ -24,16 +26,19 @@ public class ApplyParticipationService {
 
 	private final ApplicationChallenges challenges;
 	private final ApplicantPoints points;
+	private final ApplicationNotifier notifier;
 	private final ParticipationRepository participations;
 	private final Clock clock;
 
 	public ApplyParticipationService(
 			ApplicationChallenges challenges,
 			ApplicantPoints points,
+			ApplicationNotifier notifier,
 			ParticipationRepository participations,
 			Clock clock) {
 		this.challenges = challenges;
 		this.points = points;
+		this.notifier = notifier;
 		this.participations = participations;
 		this.clock = clock;
 	}
@@ -69,6 +74,8 @@ public class ApplyParticipationService {
 		if (challenge.pointAmount() > 0) {
 			points.hold(userId, participation.getId(), challenge.title(), challenge.pointAmount());
 		}
+		// TODO(D-38): 알림 #13 수신자·문구는 위키에 없어 제안값(방장만, 임시 문구)이다.
+		notifier.requested(challenge.ownerUserId(), challengeId, participation.getId(), challenge.title());
 		return participation.getId();
 	}
 }

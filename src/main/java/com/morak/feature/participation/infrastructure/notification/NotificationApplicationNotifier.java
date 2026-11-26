@@ -18,6 +18,16 @@ class NotificationApplicationNotifier implements ApplicationNotifier {
 	}
 
 	@Override
+	public void requested(long hostUserId, long challengeId, long participationId, String challengeTitle) {
+		notifications.notify(new NotifyCommand(
+				hostUserId,
+				new NotificationContent.ParticipationRequested(challengeTitle),
+				TARGET_CHALLENGE,
+				challengeId,
+				"PARTICIPATION_REQUESTED:" + participationId));
+	}
+
+	@Override
 	public void approved(long applicantUserId, long challengeId, long participationId, String challengeTitle) {
 		notifications.notify(new NotifyCommand(
 				applicantUserId,
