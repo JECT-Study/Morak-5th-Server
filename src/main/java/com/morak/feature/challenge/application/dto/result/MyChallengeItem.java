@@ -9,8 +9,8 @@ import java.util.List;
 /**
  * 내 챌린지 목록 한 행. 홈 카드 한 장을 이 값만으로 그릴 수 있게 한다.
  *
- * <p>TODO(D-23): 필드명은 프론트와 확정 전 제안값이다. 인증 관련 필드(teamAchievementRate ~ pendingJudgeCount)는 인증 집계 연동 전까지
- * null이다.
+ * <p>TODO(D-23): 필드명은 프론트와 확정 전 제안값이다. 팀 달성률은 시작 전·첫날처럼 어제까지의 의무가 없으면 null, 오늘 팀원 인증 현황은
+ * 오늘 인증 의무가 없는 날(시작 전·종료 후)이면 null이다(D-44).
  *
  * @param visibility PUBLIC 또는 PRIVATE
  * @param description 한 줄 소개
