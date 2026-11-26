@@ -16,6 +16,7 @@ import com.morak.feature.notification.application.dto.NotificationContent.Expell
 import com.morak.feature.notification.application.dto.NotificationContent.JudgeOverdueWarning;
 import com.morak.feature.notification.application.dto.NotificationContent.ParticipationApproved;
 import com.morak.feature.notification.application.dto.NotificationContent.ParticipationRejected;
+import com.morak.feature.notification.application.dto.NotificationContent.ParticipationRequested;
 import com.morak.feature.notification.application.dto.NotificationContent.ScheduleReset;
 import com.morak.feature.notification.application.dto.NotificationContent.StartHeld;
 import com.morak.feature.notification.domain.entity.NotificationType;
@@ -45,7 +46,8 @@ class NotificationContentTest {
 				new JudgeOverdueWarning(TITLE, 2),
 				new Expelled(TITLE, 3, 1_000L),
 				new EarlyEnded(TITLE, 1_000L),
-				new CertificationRejected(TITLE, DAY, 2));
+				new CertificationRejected(TITLE, DAY, 2),
+				new ParticipationRequested(TITLE));
 	}
 
 	@Test
@@ -54,7 +56,7 @@ class NotificationContentTest {
 				allContents().stream().map(NotificationContent::type).collect(Collectors.toSet());
 
 		assertEquals(EnumSet.allOf(NotificationType.class), covered);
-		assertEquals(12, NotificationType.values().length);
+		assertEquals(13, NotificationType.values().length);
 	}
 
 	@Test
@@ -63,6 +65,14 @@ class NotificationContentTest {
 			assertFalse(content.title().isBlank(), content.type() + " title");
 			assertFalse(content.body().isBlank(), content.type() + " body");
 		}
+	}
+
+	@Test
+	void requestedTellsTheHostAboutANewApplication() {
+		ParticipationRequested content = new ParticipationRequested(TITLE);
+
+		assertEquals(NotificationType.PARTICIPATION_REQUESTED, content.type());
+		assertEquals("매일 아침 러닝에 새 참여 신청이 도착했어요", content.body());
 	}
 
 	@Test
@@ -169,6 +179,8 @@ class NotificationContentTest {
 	void missingValuesAreRejected() {
 		assertInvalid(() -> new ParticipationApproved(null));
 		assertInvalid(() -> new ParticipationApproved(" "));
+		assertInvalid(() -> new ParticipationRequested(null));
+		assertInvalid(() -> new ParticipationRequested(" "));
 		assertInvalid(() -> new StartHeld(TITLE, null));
 		assertInvalid(() -> new ScheduleReset(TITLE, DAY, null));
 		assertInvalid(() -> new Expelled(TITLE, 0, null));

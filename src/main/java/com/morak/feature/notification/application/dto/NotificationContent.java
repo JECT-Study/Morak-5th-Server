@@ -16,7 +16,7 @@ import java.util.Locale;
  *
  * 위키(FRD 11/1)에 문구 원문이 있는 것은 #1, #2, #11 본문, #12 제목·본문, 포인트 반환 문장이다.
  * TODO: #3~#9, #10의 제목·본문과 #11의 제목·정산 문장은 위키 비고 설명으로 만든 임시 문구이므로
- * FRD 알림 문구 원문이 확정되면 교체한다.
+ * FRD 알림 문구 원문이 확정되면 교체한다. #13은 위키에 문구가 없어 같은 방식으로 만든 임시 문구다(D-38).
  */
 public sealed interface NotificationContent {
 
@@ -226,6 +226,18 @@ public sealed interface NotificationContent {
 			return MONTH_DAY.format(certDate) + " 인증이 거절되어 실패 1회로 기록됐어요. 퇴장까지 남은 실패 가능 횟수는 "
 					+ remainingFailCount + "회예요.";
 		}
+	}
+
+	/** #13 참여 신청 접수 → 방장. 신청서 내용은 알림에 싣지 않고, 눌러서 신청 목록에서 확인한다. TODO(D-38) */
+	record ParticipationRequested(String challengeTitle) implements NotificationContent {
+
+		public ParticipationRequested {
+			requireText(challengeTitle, "challengeTitle");
+		}
+
+		@Override public NotificationType type() { return NotificationType.PARTICIPATION_REQUESTED; }
+		@Override public String title() { return "참여 신청 도착"; }
+		@Override public String body() { return challengeTitle + "에 새 참여 신청이 도착했어요"; }
 	}
 
 	private static boolean hasPoint(Long pointAmount) {

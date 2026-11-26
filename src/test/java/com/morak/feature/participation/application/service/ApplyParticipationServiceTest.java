@@ -18,6 +18,7 @@ import com.morak.common.exception.CommonErrorCode;
 import com.morak.feature.participation.application.port.out.ApplicantPoints;
 import com.morak.feature.participation.application.port.out.ApplicationChallenges;
 import com.morak.feature.participation.application.port.out.ApplicationChallenges.ChallengeInfo;
+import com.morak.feature.participation.application.port.out.ApplicationNotifier;
 import com.morak.feature.participation.domain.entity.Participation;
 import com.morak.feature.participation.domain.enums.ParticipationStatus;
 import com.morak.feature.participation.domain.exception.ParticipationErrorCode;
@@ -39,9 +40,10 @@ class ApplyParticipationServiceTest {
 
 	private final ApplicationChallenges challenges = mock(ApplicationChallenges.class);
 	private final ApplicantPoints points = mock(ApplicantPoints.class);
+	private final ApplicationNotifier notifier = mock(ApplicationNotifier.class);
 	private final ParticipationRepository participations = mock(ParticipationRepository.class);
 	private final ApplyParticipationService service = new ApplyParticipationService(
-			challenges, points, participations, Clock.fixed(NOW, ZoneOffset.UTC));
+			challenges, points, notifier, participations, Clock.fixed(NOW, ZoneOffset.UTC));
 
 	@Test
 	void appliesToAChallengeWithoutPointsAndStoresPendingMember() {
@@ -73,6 +75,28 @@ class ApplyParticipationServiceTest {
 		verify(points).hold(USER, 44L, "아침 독서", 1_000);
 		assertEquals(true, savedParticipation().isPointHeld());
 		assertEquals(1_000, savedParticipation().getPointAmount());
+	}
+
+	@Test
+	void notifiesTheHostWhenAnApplicationIsReceived() {
+		givenChallenge(info(false, "", true, 1_000));
+		givenSavedWithId(44L);
+		when(challenges.canJoinMore(USER)).thenReturn(true);
+
+		service.apply(USER, CHALLENGE, "열심히 할게요", null);
+
+		// 방장은 info()의 ownerUserId(1L)이고, 신청자(USER)가 아니다.
+		verify(notifier).requested(1L, CHALLENGE, 44L, "아침 독서");
+	}
+
+	@Test
+	void doesNotNotifyWhenTheApplicationIsRejected() {
+		givenChallenge(info(false, "", true, 0));
+		when(challenges.canJoinMore(USER)).thenReturn(false);
+
+		assertError(ParticipationErrorCode.PARTICIPATION_LIMIT_EXCEEDED, () -> service.apply(USER, CHALLENGE, null, null));
+
+		verify(notifier, never()).requested(anyLong(), anyLong(), anyLong(), anyString());
 	}
 
 	@Test
