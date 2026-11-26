@@ -238,7 +238,7 @@ public class Challenge extends BaseEntity {
 		if (status != ChallengeStatus.IN_PROGRESS || !endDate.isBefore(today)) {
 			log.warn("챌린지 상태 전이 거절: challengeId={}, from={}, to={}, endDate={}, today={}", id, status,
 					ChallengeStatus.FINALIZING, endDate, today);
-			throw new BusinessException(ChallengeErrorCode.NOT_IN_PROGRESS);
+			throw new BusinessException(ChallengeErrorCode.NOT_FINALIZABLE);
 		}
 		this.status = ChallengeStatus.FINALIZING;
 	}
@@ -247,7 +247,7 @@ public class Challenge extends BaseEntity {
 	public void end() {
 		if (status != ChallengeStatus.FINALIZING) {
 			log.warn("챌린지 상태 전이 거절: challengeId={}, from={}, to={}", id, status, ChallengeStatus.ENDED);
-			throw new BusinessException(ChallengeErrorCode.NOT_FINALIZING);
+			throw new BusinessException(ChallengeErrorCode.NOT_FINALIZABLE);
 		}
 		this.status = ChallengeStatus.ENDED;
 	}

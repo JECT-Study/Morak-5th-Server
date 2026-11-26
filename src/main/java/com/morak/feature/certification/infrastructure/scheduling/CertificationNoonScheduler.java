@@ -44,6 +44,10 @@ public class CertificationNoonScheduler {
 		} catch (RuntimeException exception) {
 			log.error("퇴장 판정 실패", exception);
 		}
-		finalizeChallenges.run();
+		try {
+			finalizeChallenges.run();
+		} catch (RuntimeException exception) {
+			log.error("결과 확정 실패", exception);
+		}
 	}
 }
