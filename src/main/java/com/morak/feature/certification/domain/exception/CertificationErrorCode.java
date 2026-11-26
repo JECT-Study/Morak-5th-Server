@@ -17,7 +17,10 @@ public enum CertificationErrorCode implements ErrorCode {
 	IMAGE_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 처리할 수 없습니다. 다시 시도해 주세요."),
 	FEED_NOT_MEMBER(HttpStatus.FORBIDDEN, "참여한 챌린지의 인증만 볼 수 있습니다."),
 	LIKE_NOT_MEMBER(HttpStatus.FORBIDDEN, "참여한 챌린지의 인증에만 좋아요를 누를 수 있습니다."),
-	LIKE_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "좋아요를 누를 수 있는 인증을 찾을 수 없습니다.");
+	LIKE_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "좋아요를 누를 수 있는 인증을 찾을 수 없습니다."),
+	JUDGMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "판정할 인증을 찾을 수 없습니다."),
+	NOT_JUDGE(HttpStatus.FORBIDDEN, "이 인증을 판정할 권한이 없습니다."),
+	JUDGE_DUE_PASSED(HttpStatus.CONFLICT, "판정 마감 시간이 지났습니다.");
 
 	private final HttpStatus status;
 	private final String message;

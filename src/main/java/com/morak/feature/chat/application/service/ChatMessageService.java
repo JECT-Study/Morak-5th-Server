@@ -92,6 +92,21 @@ public class ChatMessageService {
 		return toResults(challengeId, List.of(message)).get(0);
 	}
 
+	/**
+	 * 서버 안내(SYSTEM) 메시지를 남긴다(위키 §4.7: 판정 경고 누적 안내). 다른 도메인의 배치가 부르며 그 트랜잭션에 함께 묶인다.
+	 * 중복 방지는 부르는 쪽이 한다.
+	 *
+	 * <p>shortcut: 저장만 하고 STOMP로 바로 내보내지 않는다. 구독 중인 화면은 다음 조회(after 커서) 때 받는다. 실시간 표시가 필요하면 커밋 뒤
+	 * 이벤트로 내보낸다.
+	 */
+	@Transactional
+	public void postSystem(Long challengeId, String content) {
+		if (content == null || content.isBlank() || content.length() > ChatMessage.MAX_CONTENT_LENGTH) {
+			throw new BusinessException(ChatErrorCode.INVALID_MESSAGE);
+		}
+		messageRepository.save(ChatMessage.system(challengeId, content, LocalDateTime.now(clock.withZone(ZoneOffset.UTC))));
+	}
+
 	/** 메시지 조회. 반환은 항상 id 오름차순. */
 	@Transactional(readOnly = true)
 	public List<ChatMessageResult> list(Long challengeId, Long userId, Long before, Long after, Integer limit) {
