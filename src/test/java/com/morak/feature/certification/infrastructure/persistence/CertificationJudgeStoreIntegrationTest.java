@@ -54,6 +54,7 @@ class CertificationJudgeStoreIntegrationTest {
 	void setUp() {
 		jdbc.sql("DELETE FROM morak.certification_image").update();
 		jdbc.sql("DELETE FROM morak.certification").update();
+		jdbc.sql("DELETE FROM morak.participation").update();
 		jdbc.sql("DELETE FROM morak.challenge").update();
 		challengeId = jdbc.sql("""
 				INSERT INTO morak.challenge (owner_user_id, title, category, invite_code, status, start_date, end_date,
@@ -125,6 +126,28 @@ class CertificationJudgeStoreIntegrationTest {
 		assertEquals(List.of("PENDING", "PENDING", "REJECTED", "FAILED"), jdbc.sql("""
 				SELECT status FROM morak.certification WHERE id <> :id ORDER BY participation_id
 				""").param("id", overdue).query(String.class).list());
+	}
+
+	/** 11/24 12:05 KST에 퇴장한 제출자: 그날 낸 인증은 판정할 수 없었으므로 경고에서 빠지고, 전날 경고는 남는다. */
+	@Test
+	void expelledSubmittersCertificationsFromTheExpulsionDayAreNotCountedAsWarnings() {
+		long expelled = jdbc.sql("""
+				INSERT INTO morak.participation (challenge_id, user_id, role, status, point_status, applied_at, joined_at,
+												ended_at, end_reason)
+				VALUES (:challengeId, 7, 'MEMBER', 'EXPELLED', 'NONE', now(), now(), TIMESTAMP '2026-11-24 03:05:00',
+						'FAIL_LIMIT')
+				RETURNING id
+				""").param("challengeId", challengeId).query(Long.class).single();
+		insertOn(DAY.minusDays(1), expelled, "AUTO_APPROVED", BEFORE_DUE.minusSeconds(86_400), null);
+		insertOn(DAY, expelled, "PENDING", DUE, null);
+		insertOn(DAY, 100L, "PENDING", DUE, null);
+
+		assertEquals(List.of(new ApprovedDay(100L, DAY)), store.autoApprove(challengeId, DUE));
+		assertEquals(List.of(new ApprovedDay(expelled, DAY.minusDays(1)), new ApprovedDay(100L, DAY)),
+				store.findAutoApproved(challengeId).stream()
+						.sorted(java.util.Comparator.comparing(ApprovedDay::certDate)).toList());
+		assertEquals(2L, jdbc.sql("SELECT count(*) FROM morak.certification WHERE cert_date = :day AND status = 'AUTO_APPROVED'")
+				.param("day", DAY).query(Long.class).single());
 	}
 
 	private long insert(long participationId, String status, Instant judgeDueAt, String imageKey) {

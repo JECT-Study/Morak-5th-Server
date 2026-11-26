@@ -109,6 +109,41 @@ class ExpelFailedParticipantsIntegrationTest {
 	}
 
 	@Test
+	void hostExpelledIntoEarlyEndHandsOverOwnerBeforeTheChallengeCloses() {
+		long challenge = challenge("PUBLIC", 0);
+		long host = participant(challenge, 1, "HOST");
+		participant(challenge, 2, "DEPUTY");
+		participant(challenge, 3, "MEMBER");
+		fail(challenge, host, "2026-11-20", "FAILED");
+		fail(challenge, host, "2026-11-23", "REJECTED");
+
+		assertEquals(1, service.run());
+
+		assertEquals(List.of("1:MEMBER:EXPELLED:FAIL_LIMIT", "2:HOST:EARLY_ENDED:EARLY_END",
+				"3:DEPUTY:EARLY_ENDED:EARLY_END"), members(challenge));
+		assertEquals(2L, ownerOf(challenge));
+		assertEquals("FINALIZING", statusOf(challenge));
+	}
+
+	/** TODO(D-45): 한 번에 1명 이하로 줄어도 조기 종료로 본다. */
+	@Test
+	void publicChallengeDroppingBelowTwoAtOnceAlsoEndsEarly() {
+		long challenge = challenge("PUBLIC", 0);
+		participant(challenge, 1, "HOST");
+		for (long userId = 2; userId <= 4; userId++) {
+			long member = participant(challenge, userId, userId == 2 ? "DEPUTY" : "MEMBER");
+			fail(challenge, member, "2026-11-20", "FAILED");
+			fail(challenge, member, "2026-11-21", "FAILED");
+		}
+
+		assertEquals(3, service.run());
+
+		assertEquals(List.of("1:HOST:EARLY_ENDED:EARLY_END", "2:MEMBER:EXPELLED:FAIL_LIMIT",
+				"3:MEMBER:EXPELLED:FAIL_LIMIT", "4:MEMBER:EXPELLED:FAIL_LIMIT"), members(challenge));
+		assertEquals("FINALIZING", statusOf(challenge));
+	}
+
+	@Test
 	void privateChallengeKeepsGoingWithTwoAndPointChallengeIsLeftToAdminReview() {
 		long privateChallenge = challenge("PRIVATE", 0);
 		participant(privateChallenge, 1, "HOST");

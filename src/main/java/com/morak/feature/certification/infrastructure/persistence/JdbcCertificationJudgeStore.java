@@ -93,14 +93,29 @@ class JdbcCertificationJudgeStore implements CertificationJudgeStore {
 				.list();
 	}
 
+	/**
+	 * 퇴장일(ended_at의 KST 날짜) 이후 인증은 판정 API가 받지 않으므로(제출자 퇴장) 판정 경고에서 뺀다. 퇴장 전 날짜의 경고는 그대로 센다.
+	 * 인증 행 별칭은 {@code c}다.
+	 */
+	private static final String NOT_EXPELLED_BY_CERT_DATE = """
+			NOT EXISTS (
+				SELECT 1 FROM morak.participation p
+				WHERE p.id = c.participation_id AND p.status = 'EXPELLED'
+					AND c.cert_date >= CAST(p.ended_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul' AS date)
+			)
+			""";
+
 	@Override
 	public List<ApprovedDay> autoApprove(long challengeId, Instant now) {
 		// 판정자는 없고(judged_by NULL) 처리 시각만 남긴다. 상태 조건부라 다시 돌려도 바뀌는 행이 없다.
 		return jdbc.sql("""
-				UPDATE morak.certification SET status = 'AUTO_APPROVED', judged_at = :now, updated_at = :now
-				WHERE challenge_id = :challengeId AND status = 'PENDING' AND judge_due_at <= :now
-				RETURNING participation_id, cert_date
-				""")
+				WITH approved AS (
+					UPDATE morak.certification SET status = 'AUTO_APPROVED', judged_at = :now, updated_at = :now
+					WHERE challenge_id = :challengeId AND status = 'PENDING' AND judge_due_at <= :now
+					RETURNING participation_id, cert_date
+				)
+				SELECT participation_id, cert_date FROM approved c
+				WHERE""" + " " + NOT_EXPELLED_BY_CERT_DATE)
 				.param("challengeId", challengeId)
 				.param("now", utc(now))
 				.query((rs, rowNum) -> approvedDay(rs))
@@ -110,9 +125,8 @@ class JdbcCertificationJudgeStore implements CertificationJudgeStore {
 	@Override
 	public List<ApprovedDay> findAutoApproved(long challengeId) {
 		return jdbc.sql("""
-				SELECT participation_id, cert_date FROM morak.certification
-				WHERE challenge_id = :challengeId AND status = 'AUTO_APPROVED'
-				""")
+				SELECT participation_id, cert_date FROM morak.certification c
+				WHERE challenge_id = :challengeId AND status = 'AUTO_APPROVED' AND""" + " " + NOT_EXPELLED_BY_CERT_DATE)
 				.param("challengeId", challengeId)
 				.query((rs, rowNum) -> approvedDay(rs))
 				.list();
