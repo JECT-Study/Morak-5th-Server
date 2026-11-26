@@ -6,6 +6,7 @@ import com.morak.feature.certification.application.port.out.CertificationCardSto
 import com.morak.feature.certification.application.port.out.CertificationImageUrls;
 import com.morak.feature.certification.application.query.CertificationCardQuery;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashMap;
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Service;
 /**
  * 홈 카드 인증 집계(위키 §4.5, D-23 ⑤~⑦). 카드 수와 상관없이 쿼리 두 번으로 읽는다.
  *
- * <p>TODO(D-44): 오늘 사진은 승인된 인증만 넣는다(판정 전 사진 노출은 PM 확인 전). 판정 대기 수는 날짜와 상관없이 PENDING 전체를 센다.
+ * <p>TODO(D-44): 오늘 사진은 승인된 인증만 넣는다(판정 전 사진 노출은 PM 확인 전). 판정 대기 수는 판정 목록과 같이 마감 전·퇴장자 제외 PENDING을 센다.
  * TODO(O-23): 면제일은 정의가 없어 의무 횟수에서 빼지 않는다.
  */
 @Service
@@ -26,10 +27,12 @@ public class ReadCertificationCardsService implements CertificationCardQuery {
 
 	private final CertificationCardStore store;
 	private final CertificationImageUrls imageUrls;
+	private final Clock clock;
 
-	public ReadCertificationCardsService(CertificationCardStore store, CertificationImageUrls imageUrls) {
+	public ReadCertificationCardsService(CertificationCardStore store, CertificationImageUrls imageUrls, Clock clock) {
 		this.store = store;
 		this.imageUrls = imageUrls;
+		this.clock = clock;
 	}
 
 	@Override
@@ -37,7 +40,7 @@ public class ReadCertificationCardsService implements CertificationCardQuery {
 		if (participationIds.isEmpty()) {
 			return Map.of();
 		}
-		List<CardRow> cards = store.findCards(participationIds, today);
+		List<CardRow> cards = store.findCards(participationIds, today, clock.instant());
 		List<Long> openChallenges =
 				cards.stream().filter(CardRow::todayOpen).map(CardRow::challengeId).distinct().toList();
 		List<PhotoRow> photos = openChallenges.isEmpty() ? List.of() : store.findApprovedPhotos(openChallenges, today);

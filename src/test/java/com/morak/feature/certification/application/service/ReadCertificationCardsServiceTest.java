@@ -16,8 +16,10 @@ import com.morak.feature.certification.application.port.out.CertificationImageUr
 import com.morak.feature.certification.application.query.CertificationCardQuery.CardStats;
 import com.morak.feature.certification.application.query.CertificationCardQuery.TodayPhoto;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -25,10 +27,11 @@ import org.junit.jupiter.api.Test;
 class ReadCertificationCardsServiceTest {
 
 	private static final LocalDate TODAY = LocalDate.of(2026, 11, 25);
+	private static final Instant NOW = Instant.parse("2026-11-25T01:00:00Z");
 
 	private final CertificationCardStore store = mock(CertificationCardStore.class);
 	private final CertificationImageUrls urls = mock(CertificationImageUrls.class);
-	private final ReadCertificationCardsService service = new ReadCertificationCardsService(store, urls);
+	private final ReadCertificationCardsService service = new ReadCertificationCardsService(store, urls, Clock.fixed(NOW, ZoneOffset.UTC));
 
 	@Test
 	void teamAchievementRateUsesFailuresOverTargetWithHalfUpTenths() {
@@ -45,7 +48,7 @@ class ReadCertificationCardsServiceTest {
 	@Test
 	void buildsTodayTeamWithSignedPhotosOnlyOnCertificationDays() {
 		Instant at = Instant.parse("2026-11-25T01:00:00Z");
-		when(store.findCards(List.of(1L, 2L), TODAY)).thenReturn(List.of(
+		when(store.findCards(List.of(1L, 2L), TODAY, NOW)).thenReturn(List.of(
 				new CardRow(1L, 10L, 59L, 3, true, 4, 2, "PENDING", 1),
 				new CardRow(2L, 20L, null, 0, false, 0, 0, null, 0)));
 		when(store.findApprovedPhotos(List.of(10L), TODAY)).thenReturn(List.of(new PhotoRow(10L, 7L, "k1", at)));
@@ -67,7 +70,7 @@ class ReadCertificationCardsServiceTest {
 
 	@Test
 	void skipsPhotoQueryWhenNoCardIsOpenToday() {
-		when(store.findCards(List.of(2L), TODAY)).thenReturn(List.of(new CardRow(2L, 20L, 10L, 0, false, 0, 0, null, 0)));
+		when(store.findCards(List.of(2L), TODAY, NOW)).thenReturn(List.of(new CardRow(2L, 20L, 10L, 0, false, 0, 0, null, 0)));
 		when(urls.resolveByKey(List.of())).thenReturn(Map.of());
 
 		service.findCardStats(List.of(2L), TODAY);

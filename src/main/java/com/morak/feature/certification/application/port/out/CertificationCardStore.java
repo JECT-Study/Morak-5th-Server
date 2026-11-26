@@ -8,8 +8,8 @@ import java.util.List;
 /** 홈 카드 인증 집계 조회. */
 public interface CertificationCardStore {
 
-	/** 참가별 집계. 없는 참가는 결과에 없다. */
-	List<CardRow> findCards(Collection<Long> participationIds, LocalDate today);
+	/** 참가별 집계. 없는 참가는 결과에 없다. @param now 판정 마감(judge_due_at) 비교 시각 */
+	List<CardRow> findCards(Collection<Long> participationIds, LocalDate today, Instant now);
 
 	/** 챌린지들의 오늘 승인된 인증(ACTIVE 팀원만). 챌린지·제출 시각 순. */
 	List<PhotoRow> findApprovedPhotos(Collection<Long> challengeIds, LocalDate today);

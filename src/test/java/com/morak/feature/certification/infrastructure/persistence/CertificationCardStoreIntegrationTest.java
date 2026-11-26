@@ -30,6 +30,7 @@ class CertificationCardStoreIntegrationTest {
 
 	private static final LocalDate START = LocalDate.of(2026, 11, 1);
 	private static final LocalDate END = START.plusDays(13);
+	private static final Instant LATER = Instant.parse("2026-12-01T00:00:00Z");
 
 	@TestConfiguration(proxyBeanMethods = false)
 	static class Containers {
@@ -71,7 +72,7 @@ class CertificationCardStoreIntegrationTest {
 		}
 		cert(challenge, expelled, START.plusDays(3), "REJECTED", "2026-11-04T01:00:00Z");
 
-		CardRow card = store.findCards(List.of(host), END.plusDays(2)).getFirst();
+		CardRow card = store.findCards(List.of(host), END.plusDays(2), LATER).getFirst();
 
 		assertEquals(59L, card.teamTarget());
 		assertEquals(3, card.teamFailed());
@@ -88,7 +89,7 @@ class CertificationCardStoreIntegrationTest {
 		}
 		participant(challenge, "MEMBER", "EXPELLED", Instant.parse("2026-11-03T23:00:00Z"));
 
-		CardRow card = store.findCards(List.of(host), END.plusDays(2)).getFirst();
+		CardRow card = store.findCards(List.of(host), END.plusDays(2), LATER).getFirst();
 
 		// 4명 × 14일 + 퇴장자 3일(11/1~11/3). UTC 날짜로 잘못 자르면 58이 된다
 		assertEquals(59L, card.teamTarget());
@@ -107,14 +108,19 @@ class CertificationCardStoreIntegrationTest {
 		long approved = cert(challenge, member, today, "APPROVED", "2026-11-03T01:00:00Z");
 		image(approved, "member-today");
 		cert(challenge, member, today.plusDays(1), "FAILED", null);
+		// 판정 목록(D-42)에서 빠지는 것: 마감(11/2 12:00 KST)이 지난 PENDING, 11/2에 퇴장한 팀원의 PENDING
+		cert(challenge, deputy, START, "PENDING", "2026-11-01T01:00:00Z");
+		long expelled = participant(challenge, "MEMBER", "EXPELLED", Instant.parse("2026-11-02T03:05:00Z"));
+		cert(challenge, expelled, START.plusDays(1), "PENDING", "2026-11-02T01:00:00Z");
 
-		List<CardRow> cards = store.findCards(List.of(host, deputy, member), today);
+		// 11/3 10:00 KST
+		List<CardRow> cards = store.findCards(List.of(host, deputy, member), today, Instant.parse("2026-11-03T01:00:00Z"));
 		CardRow hostCard = cards.stream().filter(c -> c.participationId() == host).findFirst().orElseThrow();
 		CardRow deputyCard = cards.stream().filter(c -> c.participationId() == deputy).findFirst().orElseThrow();
 		CardRow memberCard = cards.stream().filter(c -> c.participationId() == member).findFirst().orElseThrow();
 
-		// 어제(11/2)까지 3명 × 2일, 실패 1(오늘 이후 행은 세지 않는다)
-		assertEquals(6L, hostCard.teamTarget());
+		// 어제(11/2)까지 3명 × 2일 + 퇴장자 1일(11/1), 실패 1(오늘 이후 행은 세지 않는다)
+		assertEquals(7L, hostCard.teamTarget());
 		assertEquals(1, hostCard.teamFailed());
 		assertTrue(hostCard.todayOpen());
 		assertEquals(3, hostCard.todayTarget());
@@ -122,7 +128,7 @@ class CertificationCardStoreIntegrationTest {
 		assertEquals("PENDING", hostCard.myTodayStatus());
 		assertNull(deputyCard.myTodayStatus());
 		assertEquals("APPROVED", memberCard.myTodayStatus());
-		// 방장은 자기 것을 뺀 PENDING(부방장 1), 부방장은 방장 인증만(1), 일반 팀원은 0
+		// 방장은 마감 전 방장 아닌 팀원의 PENDING(부방장 11/2 1건), 부방장은 방장 인증만(1), 일반 팀원은 0
 		assertEquals(1, hostCard.pendingJudgeCount());
 		assertEquals(1, deputyCard.pendingJudgeCount());
 		assertEquals(0, memberCard.pendingJudgeCount());
@@ -140,7 +146,7 @@ class CertificationCardStoreIntegrationTest {
 		long pointMember = participant(pointChallenge, "MEMBER", "ACTIVE", null);
 		cert(pointChallenge, pointMember, START, "PENDING", "2026-11-01T01:00:00Z");
 
-		List<CardRow> cards = store.findCards(List.of(waitingHost, pointHost), START.plusDays(1));
+		List<CardRow> cards = store.findCards(List.of(waitingHost, pointHost), START.plusDays(1), LATER);
 
 		CardRow waiting = cards.stream().filter(c -> c.participationId() == waitingHost).findFirst().orElseThrow();
 		assertNull(waiting.teamTarget());
@@ -191,8 +197,9 @@ class CertificationCardStoreIntegrationTest {
 
 	private long cert(long challengeId, long participationId, LocalDate day, String status, String submittedAt) {
 		return jdbc.sql("""
-				INSERT INTO morak.certification (challenge_id, participation_id, cert_date, status, submitted_at, updated_at)
-				VALUES (:challengeId, :participationId, :day, :status, :submittedAt, now())
+				INSERT INTO morak.certification
+					(challenge_id, participation_id, cert_date, status, submitted_at, judge_due_at, updated_at)
+				VALUES (:challengeId, :participationId, :day, :status, :submittedAt, :judgeDueAt, now())
 				RETURNING id
 				""")
 				.param("challengeId", challengeId)
@@ -201,6 +208,8 @@ class CertificationCardStoreIntegrationTest {
 				.param("status", status)
 				.param("submittedAt", submittedAt == null ? null
 						: LocalDateTime.ofInstant(Instant.parse(submittedAt), ZoneOffset.UTC), java.sql.Types.TIMESTAMP)
+				// 제출한 인증은 다음 날 12:00 KST(= 다음 날 03:00 UTC) 마감(D-34 ⑤)
+				.param("judgeDueAt", submittedAt == null ? null : day.plusDays(1).atTime(3, 0), java.sql.Types.TIMESTAMP)
 				.query(Long.class)
 				.single();
 	}
