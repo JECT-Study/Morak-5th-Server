@@ -53,10 +53,10 @@ public interface ParticipationCommand {
 	ExpelOutcome expel(long challengeId, Collection<Long> participationIds, LocalDate today, Instant now);
 
 	/**
-	 * 결과 확정(위키 §4.5)으로 챌린지에 남은 참여 중(ACTIVE) 참가자를 모두 COMPLETED(`end_reason=COMPLETED`)로 바꾼다.
-	 * 퇴장자·조기 종료 남은 사람(EARLY_ENDED)은 그대로 둔다. 챌린지를 잠근 뒤에 호출한다. 다시 호출해도 결과는 같다.
+	 * 결과 확정(위키 §4.5)으로 챌린지에 남은 참여 중(ACTIVE) 참가자를 모두 COMPLETED(`end_reason=COMPLETED`)로 바꾸고 그 참가 ID를
+	 * 돌려준다. 퇴장자·조기 종료 남은 사람(EARLY_ENDED)은 그대로 둔다. 챌린지를 잠근 뒤에 호출한다. 다시 호출하면 빈 목록이다.
 	 */
-	void completeActive(long challengeId, Instant now);
+	List<Long> completeActive(long challengeId, Instant now);
 
 	/**
 	 * 퇴장 결과.
