@@ -12,6 +12,9 @@ public interface ChallengeQuery {
 	/** 인증 제출에 필요한 챌린지 상태·기간·참여 포인트. 챌린지가 없으면 empty. */
 	Optional<CertificationWindow> findCertificationWindow(Long challengeId);
 
+	/** 챌린지명. 알림 문구에 쓴다. 챌린지가 없으면 empty. */
+	Optional<String> findTitle(Long challengeId);
+
 	/**
 	 * @param status challenge.status
 	 * @param startDate 시작일 (KST)

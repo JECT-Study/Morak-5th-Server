@@ -34,4 +34,12 @@ public class JdbcChallengeQuery implements ChallengeQuery {
 						rs.getInt("point_amount")))
 				.optional();
 	}
+
+	@Override
+	public Optional<String> findTitle(Long challengeId) {
+		return jdbc.sql("SELECT title FROM morak.challenge WHERE id = :id")
+				.param("id", challengeId)
+				.query(String.class)
+				.optional();
+	}
 }
