@@ -164,6 +164,23 @@ class ExpelFailedParticipantsIntegrationTest {
 		assertEquals(List.of("4:HOST:ACTIVE:"), members(pointChallenge));
 	}
 
+	/** TODO(D-45): 종료일 다음 날 정오에는 판정하지 않아 마지막 날 실패로 기준에 닿아도 퇴장시키지 않는다. */
+	@Test
+	void dayAfterEndDateIsNotJudged() {
+		long challenge = challenge("PUBLIC", 0);
+		participant(challenge, 1, "HOST");
+		participant(challenge, 2, "DEPUTY");
+		long member = participant(challenge, 3, "MEMBER");
+		fail(challenge, member, "2026-11-25", "FAILED");
+		fail(challenge, member, "2026-11-26", "FAILED");
+		ExpelFailedParticipantsService dayAfterEnd = new ExpelFailedParticipantsService(store, targets, notices,
+				transactionManager, Clock.fixed(Instant.parse("2026-11-27T03:05:00Z"), ZoneOffset.UTC));
+
+		assertEquals(0, dayAfterEnd.run());
+
+		assertEquals(List.of("1:HOST:ACTIVE:", "2:DEPUTY:ACTIVE:", "3:MEMBER:ACTIVE:"), members(challenge));
+	}
+
 	@Test
 	void runningAgainChangesNothing() {
 		long challenge = challenge("PUBLIC", 0);
