@@ -16,7 +16,7 @@ import com.morak.feature.challenge.application.port.out.ChallengeParticipationRe
 import com.morak.feature.challenge.application.query.ChallengeReadQuery;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeDetail;
 import com.morak.feature.challenge.domain.enums.ChallengeStatus;
-import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
+import com.morak.feature.challenge.domain.policy.RecruitDeadline;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -119,7 +119,7 @@ public class ReadMyChallengesService {
 				challenge.category(), challenge.visibility().name(), key == null ? null : urls.get(key),
 				challenge.startDate(), challenge.endDate(), challenge.pointAmount(), row.role(), row.status(),
 				challenge.status().name(), challenge.currentCount(), challenge.capacity(),
-				progressDay(challenge, today), startHeld(challenge),
+				progressDay(challenge, today), startHeld(challenge, joinedForStart(challenge)),
 				stats == null ? null : stats.teamAchievementRate(),
 				stats == null ? null : todayTeam(stats.todayTeam()),
 				stats == null ? null : stats.myTodayStatus(),
@@ -147,14 +147,28 @@ public class ReadMyChallengesService {
 		return (int) Math.max(1, Math.min(day, totalDays));
 	}
 
-	/** 시작 보류 안내. 추가 모집 마감은 예정 시작일 + 2일 23:59:59 KST다(위키 §4.2). */
-	static StartHeld startHeld(ChallengeDetail challenge) {
+	/**
+	 * 시작 보류 카드에 보여 줄 인원. 시작 처리와 같은 기준(추가 모집 마감 전에 합류한 인원, D-29)으로 센다.
+	 * 마감 전에는 현재 참여 인원과 같고, 마감 뒤 승인된 인원은 시작에 들어가지 않으므로 빼고 보여 준다. 시작 보류만 조회한다.
+	 */
+	private int joinedForStart(ChallengeDetail challenge) {
+		if (challenge.status() != ChallengeStatus.START_HELD) {
+			return 0;
+		}
+		return participations.countJoinedBefore(challenge.id(), RecruitDeadline.endOf(challenge.startDate()));
+	}
+
+	/**
+	 * 시작 보류 안내. 추가 모집 마감은 예정 시작일 + 2일 23:59:59 KST다(위키 §4.2).
+	 *
+	 * @param joinedCount 추가 모집 마감 전에 합류한 인원(시작 처리와 같은 기준)
+	 */
+	static StartHeld startHeld(ChallengeDetail challenge, int joinedCount) {
 		if (challenge.status() != ChallengeStatus.START_HELD) {
 			return null;
 		}
-		int minCount = challenge.visibility() == ChallengeVisibility.PUBLIC ? 3 : 2;
-		OffsetDateTime deadline = challenge.startDate().plusDays(2).atTime(LocalTime.of(23, 59, 59)).atZone(KST)
+		OffsetDateTime deadline = RecruitDeadline.dateOf(challenge.startDate()).atTime(LocalTime.of(23, 59, 59)).atZone(KST)
 				.toOffsetDateTime();
-		return new StartHeld(challenge.currentCount(), minCount, deadline);
+		return new StartHeld(joinedCount, challenge.visibility().minParticipants(), deadline);
 	}
 }

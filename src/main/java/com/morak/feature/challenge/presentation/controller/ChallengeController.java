@@ -3,6 +3,7 @@ package com.morak.feature.challenge.presentation.controller;
 import com.morak.common.config.OpenApiConfig;
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
+import com.morak.common.image.UploadedImages;
 import com.morak.common.response.ApiResponse;
 import com.morak.feature.auth.application.dto.result.LoginUser;
 import com.morak.feature.challenge.application.dto.query.ListChallengesQuery;
@@ -10,12 +11,17 @@ import com.morak.feature.challenge.application.dto.result.CategoryItem;
 import com.morak.feature.challenge.application.dto.result.ChallengePage;
 import com.morak.feature.challenge.application.dto.result.ChallengeView;
 import com.morak.feature.challenge.application.dto.result.CreatedChallenge;
+import com.morak.feature.challenge.application.dto.result.RescheduledChallenge;
+import com.morak.feature.challenge.application.service.RescheduleChallengeService;
+import com.morak.feature.challenge.application.dto.result.DiscardedChallenge;
+import com.morak.feature.challenge.application.service.DiscardChallengeService;
 import com.morak.feature.challenge.application.service.ChallengeCoverImages;
 import com.morak.feature.challenge.application.service.CreateChallengeService;
 import com.morak.feature.challenge.application.service.ReadChallengeService;
 import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
 import com.morak.feature.challenge.presentation.dto.request.CreateChallengeRequest;
+import com.morak.feature.challenge.presentation.dto.request.RescheduleChallengeRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Encoding;
@@ -51,11 +57,62 @@ public class ChallengeController {
 	private final CreateChallengeService service;
 	private final ReadChallengeService readService;
 	private final ChallengeCoverImages coverImages;
+	private final RescheduleChallengeService rescheduleService;
+	private final DiscardChallengeService discardService;
 
-	public ChallengeController(CreateChallengeService service, ReadChallengeService readService, ChallengeCoverImages coverImages) {
+	public ChallengeController(CreateChallengeService service, ReadChallengeService readService,
+			ChallengeCoverImages coverImages, RescheduleChallengeService rescheduleService,
+			DiscardChallengeService discardService) {
 		this.service = service;
 		this.readService = readService;
 		this.coverImages = coverImages;
+		this.rescheduleService = rescheduleService;
+		this.discardService = discardService;
+	}
+
+	/** TODO(D-27): 경로와 요청·응답은 위키·API 초안에 없는 제안이다. */
+	@PostMapping("/{id}/reschedule")
+	@Operation(summary = "시작 보류 챌린지 기간 재설정",
+			description = "방장만 시작 보류(START_HELD) 챌린지의 시작일·종료일을 다시 정합니다. 새 시작일은 내일부터, 기간은 최소 7일이며 "
+					+ "챌린지는 모집 중(RECRUITING)으로 돌아가고 방장을 뺀 대기·참여 중 참가자에게 알림이 갑니다. "
+					+ "이미 재설정돼 모집 중이면 같은 요청도 409입니다.")
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+				responseCode = "200", description = "재설정 완료.",
+				useReturnTypeSchema = true),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+				responseCode = "400", description = "시작일이 내일 이전이거나 기간이 7일 미만이거나 날짜가 올바르지 않습니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+				responseCode = "401", description = "로그인이 필요하거나 액세스 토큰이 유효하지 않습니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "방장이 아닙니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "챌린지가 없습니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "시작 보류 중이 아닙니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "알림 연동이 준비 중입니다.")
+	})
+	public ResponseEntity<ApiResponse<RescheduledChallenge>> reschedule(@PathVariable long id,
+			@AuthenticationPrincipal LoginUser user, @Valid @RequestBody RescheduleChallengeRequest request) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+				.body(ApiResponse.success(rescheduleService.reschedule(user.userId().value(), id, request.toCommand())));
+	}
+
+	/** TODO(D-26): 경로와 응답은 위키·API 초안에 없는 제안이다. */
+	@PostMapping("/{id}/discard")
+	@Operation(summary = "시작 보류 챌린지 폐기",
+			description = "방장만 시작 보류(START_HELD) 챌린지를 폐기합니다. 모든 참가자의 걸린 포인트가 즉시 전액 반환되고 알림이 갑니다. 이미 폐기된 챌린지를 다시 호출해도 같은 응답입니다.")
+	@ApiResponses({
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+				responseCode = "200", description = "폐기 완료. 이미 폐기된 챌린지도 같은 응답을 반환합니다.", useReturnTypeSchema = true),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+				responseCode = "401", description = "로그인이 필요하거나 액세스 토큰이 유효하지 않습니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "방장이 아닙니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "챌린지가 없습니다."),
+		@io.swagger.v3.oas.annotations.responses.ApiResponse(
+				responseCode = "409", description = "시작 보류 중이 아니거나, 자동 재시도 후에도 폐기하는 동안 참가 신청이 계속 바뀌었습니다. 다시 시도해 주세요.")
+	})
+	public ResponseEntity<ApiResponse<DiscardedChallenge>> discard(@PathVariable long id,
+			@AuthenticationPrincipal LoginUser user) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+				.body(ApiResponse.success(discardService.discard(user.userId().value(), id)));
 	}
 
 	@GetMapping
@@ -151,7 +208,7 @@ public class ChallengeController {
 			throw new BusinessException(ChallengeErrorCode.INVALID_COVER_IMAGE);
 		}
 		MultipartFile photo = photos.getFirst();
-		if (photo.getSize() > ChallengeCoverImages.MAX_IMAGE_BYTES) {
+		if (photo.getSize() > UploadedImages.MAX_IMAGE_BYTES) {
 			throw new BusinessException(ChallengeErrorCode.COVER_IMAGE_TOO_LARGE);
 		}
 		try {

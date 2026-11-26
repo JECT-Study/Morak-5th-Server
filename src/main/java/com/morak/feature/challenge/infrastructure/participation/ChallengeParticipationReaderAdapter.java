@@ -3,6 +3,7 @@ package com.morak.feature.challenge.infrastructure.participation;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
 import com.morak.feature.participation.application.query.ParticipationQuery;
 import com.morak.feature.participation.application.query.ParticipationQuery.MyParticipation;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -10,6 +11,11 @@ import org.springframework.stereotype.Component;
 
 @Component
 class ChallengeParticipationReaderAdapter implements ChallengeParticipationReader {
+
+	private static final Set<String> WAITING_STATUSES = Set.of("ACTIVE", "PENDING");
+	private static final String HOST_ROLE = "HOST";
+	/** {@code ParticipationQuery.countJoined}와 같은 합류 상태. */
+	private static final Set<String> JOINED_STATUSES = Set.of("ACTIVE", "EXPEL_NOTICED");
 
 	private final ParticipationQuery participationQuery;
 
@@ -36,6 +42,21 @@ class ChallengeParticipationReaderAdapter implements ChallengeParticipationReade
 	@Override
 	public List<MyParticipationRow> findMine(long userId, Set<String> statuses, Long cursor, int limit) {
 		return participationQuery.findMyParticipations(userId, statuses, cursor, limit).stream().map(this::toRow).toList();
+	}
+
+	@Override
+	public List<WaitingParticipant> findWaitingParticipants(long challengeId) {
+		return participationQuery.findParticipants(challengeId, WAITING_STATUSES).stream()
+				.filter(participant -> !HOST_ROLE.equals(participant.role()))
+				.map(participant -> new WaitingParticipant(participant.participationId(), participant.userId()))
+				.toList();
+	}
+
+	@Override
+	public int countJoinedBefore(long challengeId, Instant before) {
+		return (int) participationQuery.findParticipants(challengeId, JOINED_STATUSES).stream()
+				.filter(participant -> participant.joinedAt() != null && participant.joinedAt().isBefore(before))
+				.count();
 	}
 
 	private MyParticipationRow toRow(MyParticipation participation) {

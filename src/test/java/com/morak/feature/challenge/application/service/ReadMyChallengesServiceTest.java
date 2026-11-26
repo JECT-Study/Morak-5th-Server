@@ -176,15 +176,33 @@ class ReadMyChallengesServiceTest {
 				null, "미션", "규칙", null, ChallengeStatus.START_HELD, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 14),
 				5, 2, 0, null);
 
-		var notice = ReadMyChallengesService.startHeld(held);
+		var notice = ReadMyChallengesService.startHeld(held, 2);
 
 		assertEquals(2, notice.currentCount());
 		assertEquals(3, notice.minCount());
 		assertEquals(OffsetDateTime.parse("2026-11-03T23:59:59+09:00"), notice.recruitDeadline());
 		assertEquals(2, ReadMyChallengesService.startHeld(new ChallengeDetail(1, 1, "독서", null, ChallengeVisibility.PRIVATE,
 				ChallengeCategory.READING, null, "미션", "규칙", null, ChallengeStatus.START_HELD, LocalDate.of(2026, 11, 1),
-				LocalDate.of(2026, 11, 14), 5, 1, 0, null)).minCount());
-		assertNull(ReadMyChallengesService.startHeld(challenge(1, ChallengeStatus.IN_PROGRESS)));
+				LocalDate.of(2026, 11, 14), 5, 1, 0, null), 1).minCount());
+		assertNull(ReadMyChallengesService.startHeld(challenge(1, ChallengeStatus.IN_PROGRESS), 0));
+	}
+
+	/** 마감 뒤 승인으로 참여 인원(current_count)이 4명이어도, 시작 처리와 같이 마감 전에 합류한 2명만 보여 준다. */
+	@Test
+	void startHeldCardCountsOnlyMembersJoinedBeforeDeadline() {
+		when(participations.findMine(1L, Set.of("ACTIVE"))).thenReturn(List.of(row(11, 101)));
+		when(challenges.findByIds(anyList())).thenReturn(List.of(new ChallengeDetail(101, 1, "독서", null,
+				ChallengeVisibility.PUBLIC, ChallengeCategory.READING, null, "미션", "규칙", null, ChallengeStatus.START_HELD,
+				LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 14), 5, 4, 0, null)));
+		when(participations.countJoinedBefore(101L, java.time.Instant.parse("2026-11-03T15:00:00Z"))).thenReturn(2);
+		when(certifications.findStats(anyCollection(), any())).thenReturn(Map.of());
+		when(coverImages.urls(anyList())).thenReturn(Map.of());
+
+		MyChallengeItem item = service.list(1L, MyChallengeFilter.HOME, null, 20).items().getFirst();
+
+		assertEquals(2, item.startHeld().currentCount());
+		assertEquals(3, item.startHeld().minCount());
+		assertEquals(4, item.currentCount());
 	}
 
 	private static MyParticipationRow row(long participationId, long challengeId) {

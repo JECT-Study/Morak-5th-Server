@@ -14,6 +14,9 @@ public interface ApplicationChallenges {
 	/** 승인으로 챌린지 참여 인원을 1 늘린다. */
 	void acceptMember(long challengeId);
 
+	/** 방장·부방장 승계로 챌린지의 방장을 바꾼다. 호출한 쪽의 트랜잭션에 참여한다. */
+	void changeOwner(long challengeId, long newOwnerUserId);
+
 	/** 동시 참여 한도 안에서 더 참여할 수 있는지. 위키 §4.3, O-17. */
 	boolean canJoinMore(long userId);
 
@@ -25,5 +28,6 @@ public interface ApplicationChallenges {
 			String inviteCode,
 			boolean recruiting,
 			boolean full,
-			int pointAmount) {}
+			int pointAmount,
+			int remainingSlots) {}
 }

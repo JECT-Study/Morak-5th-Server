@@ -77,7 +77,7 @@ class ApplyParticipationServiceTest {
 
 	@Test
 	void rejectsFullChallengeBecauseRecruitmentIsClosed() {
-		givenChallenge(new ChallengeInfo(CHALLENGE, 1L, "아침 독서", false, "", true, true, 0));
+		givenChallenge(new ChallengeInfo(CHALLENGE, 1L, "아침 독서", false, "", true, true, 0, 0));
 		when(challenges.canJoinMore(USER)).thenReturn(true);
 
 		assertError(ParticipationErrorCode.CHALLENGE_FULL, () -> service.apply(USER, CHALLENGE, null, null));
@@ -149,7 +149,7 @@ class ApplyParticipationServiceTest {
 	}
 
 	private static ChallengeInfo info(boolean isPrivate, String inviteCode, boolean recruiting, int pointAmount) {
-		return new ChallengeInfo(CHALLENGE, 1L, "아침 독서", isPrivate, inviteCode, recruiting, false, pointAmount);
+		return new ChallengeInfo(CHALLENGE, 1L, "아침 독서", isPrivate, inviteCode, recruiting, false, pointAmount, 5);
 	}
 
 	private static void assertError(ParticipationErrorCode expected, Runnable action) {

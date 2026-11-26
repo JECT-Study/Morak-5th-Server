@@ -34,8 +34,8 @@ public class KakaoLoginService {
 			profile = oauthProvider.getProfile(command.code());
 		} catch (OAuthProviderException exception) {
 			throw new BusinessException(exception.isInvalidAuthorization()
-					? AuthErrorCode.INVALID_KAKAO_AUTHORIZATION
-					: AuthErrorCode.KAKAO_UNAVAILABLE);
+					? oauthProvider.provider().invalidAuthorization()
+					: oauthProvider.provider().unavailable());
 		}
 		return completeSocialLoginService.login(profile);
 	}

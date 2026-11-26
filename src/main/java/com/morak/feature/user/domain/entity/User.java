@@ -8,10 +8,13 @@ import com.morak.feature.user.domain.vo.Interest;
 import com.morak.feature.user.domain.vo.OnboardingProfile;
 import com.morak.feature.user.domain.vo.TermsAgreements;
 import com.morak.feature.user.domain.vo.UserId;
+import com.morak.feature.user.domain.vo.UserRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -19,6 +22,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -61,6 +65,10 @@ public class User extends BaseEntity {
 	@Column(nullable = false, length = 20)
 	private String status = STATUS_ACTIVE;
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	private UserRole role = UserRole.USER;
+
 	@Column(name = "terms_agreed_at")
 	private LocalDateTime termsAgreedAt;
 
@@ -83,7 +91,9 @@ public class User extends BaseEntity {
 	public UserId userId() { return new UserId(id); }
 	public boolean hasAgreedToTerms() { return termsAgreedAt != null; }
 	public boolean isOnboarded() { return onboardedAt != null; }
+	public boolean isAdmin() { return role == UserRole.ADMIN; }
 	public boolean isActive() { return STATUS_ACTIVE.equals(status) && deletedAt == null; }
+	public List<String> interestCodes() { return interests.stream().sorted().toList(); }
 
 	public void agreeToTerms(TermsAgreements agreements, LocalDateTime now) {
 		if (hasAgreedToTerms()) {
@@ -110,12 +120,28 @@ public class User extends BaseEntity {
 		if (!hasAgreedToTerms()) {
 			throw new BusinessException(UserErrorCode.TERMS_AGREEMENT_REQUIRED);
 		}
+		applyProfile(profile);
+		onboardedAt = now;
+	}
+
+	/** 온보딩 완료 여부는 SecurityConfig가 요청 단계에서 막는다. */
+	public void updateProfile(OnboardingProfile profile) {
+		applyProfile(profile);
+	}
+
+	/** @return 바꾸기 전 사진 URL. 직접 올린 사진이면 호출자가 저장소에서 지운다 */
+	public String changeProfileImage(String profileImageUrl) {
+		String previous = this.profileImageUrl;
+		this.profileImageUrl = profileImageUrl;
+		return previous;
+	}
+
+	private void applyProfile(OnboardingProfile profile) {
 		nickname = profile.nickname().value();
 		bio = profile.bio();
 		profileLinkUrl = profile.profileLinkUrl();
 		interests.clear();
 		profile.interests().stream().map(Interest::name).forEach(interests::add);
-		onboardedAt = now;
 	}
 
 	/**
@@ -137,12 +163,10 @@ public class User extends BaseEntity {
 		deletedAt = now;
 	}
 
-	public void updateSocialProfile(String email, String profileImageUrl) {
+	/** 프로필 사진은 가입 때만 소셜 사진으로 채운다. 이후 로그인은 직접 올린 사진을 덮어쓰지 않는다(D-33). */
+	public void updateSocialProfile(String email) {
 		if (email != null && !email.isBlank()) {
 			this.email = email;
-		}
-		if (profileImageUrl != null && !profileImageUrl.isBlank()) {
-			this.profileImageUrl = profileImageUrl;
 		}
 	}
 }

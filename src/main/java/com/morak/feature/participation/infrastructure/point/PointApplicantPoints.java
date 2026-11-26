@@ -2,6 +2,7 @@ package com.morak.feature.participation.infrastructure.point;
 
 import com.morak.feature.participation.application.port.out.ApplicantPoints;
 import com.morak.feature.point.application.service.PointService;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -16,6 +17,11 @@ class PointApplicantPoints implements ApplicantPoints {
 	@Override
 	public void lockAccount(long userId) {
 		points.lockAccountForChallengeCreation(userId);
+	}
+
+	@Override
+	public void lockAccounts(Set<Long> userIds) {
+		points.lockAccounts(userIds);
 	}
 
 	@Override

@@ -2,6 +2,7 @@ package com.morak.feature.user.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.inOrder;
@@ -25,6 +26,8 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class WithdrawUserServiceTest {
 
@@ -34,15 +37,27 @@ class WithdrawUserServiceTest {
 	private final UserRepository users = mock(UserRepository.class);
 	private final OngoingParticipationReader participations = mock(OngoingParticipationReader.class);
 	private final LoginSessionRevoker sessions = mock(LoginSessionRevoker.class);
-	private final WithdrawUserService service = new WithdrawUserService(users, participations, sessions, CLOCK);
+	private final ProfileImageService profileImages = mock(ProfileImageService.class);
+	private final WithdrawUserService service = new WithdrawUserService(users, participations, sessions, CLOCK, profileImages);
 
 	@Test
 	void withdrawsAndRevokesSessionsWhenNoOngoingChallenge() {
 		User user = user();
+		String photo = "https://example.com/profiles/users/7/avatar";
+		user.changeProfileImage(photo);
 		when(users.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
 		when(participations.countOngoing(7L)).thenReturn(0);
 
-		service.withdraw(USER_ID);
+		TransactionSynchronizationManager.initSynchronization();
+		try {
+			service.withdraw(USER_ID);
+			assertNull(user.getProfileImageUrl());
+			verifyNoInteractions(profileImages);
+			TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+			verify(profileImages).deleteUploadedImage(photo);
+		} finally {
+			TransactionSynchronizationManager.clearSynchronization();
+		}
 
 		assertFalse(user.isActive());
 		assertEquals(LocalDateTime.of(2026, 11, 17, 3, 0), user.getDeletedAt());
@@ -90,7 +105,7 @@ class WithdrawUserServiceTest {
 	}
 
 	private User user() {
-		User user = new User("a@example.com", "https://example.com/a.png");
+		User user = new User("a@example.com", null);
 		ReflectionTestUtils.setField(user, "id", 7L);
 		return user;
 	}

@@ -1,0 +1,106 @@
+package com.morak.feature.challenge.application.service;
+
+import com.morak.common.exception.BusinessException;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipation;
+import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
+import com.morak.feature.challenge.application.port.out.ChallengeStartHeldNotice;
+import com.morak.feature.challenge.domain.entity.Challenge;
+import com.morak.feature.challenge.domain.enums.ChallengeStatus;
+import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import com.morak.feature.challenge.domain.repository.ChallengeRepository;
+import java.time.LocalDate;
+import java.util.Optional;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * 챌린지 한 건의 시작 처리(위키 §4.2, §4.9 ②). 챌린지 하나당 트랜잭션 하나다.
+ * 최소 인원을 채웠으면 시작하고, 모집 중인데 미달이면 시작 보류로 바꾸고 방장에게 알림 #4를 보낸다.
+ * 시작하면 남은 승인 대기 신청을 모두 거절하고 걸린 포인트를 전액 돌려주며 알림 #2를 보낸다(위키 O-21, PM 확정 2026-11-21).
+ * 그래서 락 순서(포인트 계정 → 챌린지 → 참가자)대로 포인트가 걸린 대기 신청자의 계정을 챌린지보다 먼저 잠근다.
+ * 알림이 실패하면 상태 전이도 롤백되고 다음 실행이 다시 처리한다(폐기·재설정과 같은 정책).
+ *
+ * <p>TODO(D-29): 합류 인원은 참가 집계(승인 대기 제외)로 세고, 누락 보정 건의 마감이 이미 지났으면 알림 #4를 보내지 않는다.
+ */
+@Service
+public class StartChallengeTransaction {
+
+	private static final Logger log = LoggerFactory.getLogger(StartChallengeTransaction.class);
+
+	private final ChallengeRepository challenges;
+	private final ChallengeParticipationReader participants;
+	private final Optional<ChallengeParticipation> participationPort;
+	private final Optional<ChallengeStartHeldNotice> notice;
+
+	public StartChallengeTransaction(ChallengeRepository challenges, ChallengeParticipationReader participants,
+			Optional<ChallengeParticipation> participationPort, Optional<ChallengeStartHeldNotice> notice) {
+		this.challenges = challenges;
+		this.participants = participants;
+		this.participationPort = participationPort;
+		this.notice = notice;
+	}
+
+	@Transactional
+	public Outcome process(long challengeId, LocalDate today) {
+		// 1. 잠금 없이 읽어 대상이 아니면 빨리 끝내고, 포인트 계정을 잠글지 정한다.
+		Optional<Challenge> unlocked = challenges.findById(challengeId);
+		if (unlocked.isEmpty() || !unlocked.get().isStartDue(today)) {
+			return Outcome.UNCHANGED;
+		}
+		ChallengeParticipation participations = participationPort
+				.orElseThrow(() -> new BusinessException(ChallengeErrorCode.START_INTEGRATION_UNAVAILABLE));
+		// 2. 포인트 계정(사용자 번호 오름차순). 시작하면 대기 신청자에게 포인트를 돌려줘야 하므로 챌린지보다 먼저 잠근다.
+		Set<Long> lockedUserIds = unlocked.get().getPointAmount() > 0
+				? participations.lockPendingPointAccounts(challengeId)
+				: Set.of();
+		// 3. 챌린지
+		Optional<Challenge> found = challenges.findByIdForUpdate(challengeId);
+		if (found.isEmpty()) {
+			return Outcome.UNCHANGED;
+		}
+		Challenge challenge = found.get();
+		// 후보를 고른 뒤 잠그기 전에 폐기·재설정·시작됐을 수 있으므로 잠근 뒤 다시 확인한다.
+		if (!challenge.isStartDue(today)) {
+			return Outcome.UNCHANGED;
+		}
+		// 승인도 챌린지 행을 잠근 뒤 처리하므로, 잠근 뒤 센 인원은 그 사이 승인을 빠뜨리지 않는다.
+		// 모집 중·시작 보류 모두 추가 모집이 끝나는 시각 전에 합류한 인원만 센다. 예정일 당일에는 그 시각이 아직 오지 않아
+		// 전체 합류 인원과 같다. 배치가 누락·지연돼도 마감 전에 찼으면 시작하고, 마감 뒤에 찼으면 시작하지 않는다.
+		// TODO(D-29): 합류 시각(joined_at)으로 마감 전 충족을 판단하는 것은 제안이다.
+		int joined = participants.countJoinedBefore(challengeId, challenge.recruitDeadlineEnd());
+		if (challenge.hasEnoughMembers(joined)) {
+			challenge.start(today);
+			// 4. 참가자: 시작 후에는 승인할 수 없으므로 남은 대기 신청을 거절하고 포인트를 돌려준다.
+			int rejected = participations.rejectPendingOnStart(challengeId, challenge.getTitle(), lockedUserIds);
+			if (rejected > 0) {
+				log.info("챌린지 시작으로 승인 대기 신청 거절: challengeId={}, rejected={}", challengeId, rejected);
+			}
+			return Outcome.STARTED;
+		}
+		if (challenge.getStatus() == ChallengeStatus.START_HELD) {
+			return Outcome.UNCHANGED;
+		}
+		return holdStart(challengeId, challenge, today);
+	}
+
+	private Outcome holdStart(long challengeId, Challenge challenge, LocalDate today) {
+		challenge.holdStart(today);
+		LocalDate deadline = challenge.recruitDeadlineDate();
+		if (deadline.isBefore(today)) {
+			// 서버가 멈춰 있어 늦게 처리한 경우다. 이미 지난 기한은 안내하지 않는다. 같은 배치의 자동 폐기(③, D-30)가 폐기한다.
+			log.warn("챌린지 시작 보류(기한 경과로 알림 생략): challengeId={}, startDate={}, today={}", challengeId,
+					challenge.getStartDate(), today);
+			return Outcome.HELD;
+		}
+		notice.orElseThrow(() -> new BusinessException(ChallengeErrorCode.START_INTEGRATION_UNAVAILABLE))
+				.startHeld(challenge.getOwnerUserId(), challengeId, challenge.getTitle(), deadline, challenge.getStartDate());
+		return Outcome.HELD;
+	}
+
+	public enum Outcome {
+		STARTED, HELD, UNCHANGED
+	}
+}

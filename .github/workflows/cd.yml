@@ -1,0 +1,122 @@
+name: CD
+
+# main에 머지되어 CI가 성공했을 때만 배포한다. CI 실패나 PR에서의 CI 실행은 배포하지 않는다.
+# workflow_run은 기본 브랜치(main)에 있는 이 파일 기준으로 동작한다.
+on:
+  workflow_run:
+    workflows: [ CI ]
+    types: [ completed ]
+    branches: [ main ]
+
+# 배포가 겹치면 앞선 배포가 끝날 때까지 기다린다 (중간에 취소하지 않음).
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/morak-server
+      # CI가 검사한 바로 그 커밋을 배포한다.
+      SHA: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SHA }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      # 테스트는 CI에서 통과했으므로 jar만 만든다.
+      - name: Build jar
+        run: ./gradlew bootJar
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 커밋 SHA 태그로 배포하고, latest는 최근 배포를 가리키는 용도로만 쓴다.
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.IMAGE }}:${{ env.SHA }}
+            ${{ env.IMAGE }}:latest
+
+      # 운영 환경변수는 PROD_ENV 시크릿 하나에 .env 형식으로 담는다. 러너에서는 업로드 후 바로 지운다.
+      - name: Prepare deploy files
+        env:
+          PROD_ENV: ${{ secrets.PROD_ENV }}
+        run: |
+          umask 077
+          mkdir -p deploy-bundle
+          printf '%s\n' "$PROD_ENV" > deploy-bundle/.env
+          cp deploy/docker-compose.yml deploy-bundle/
+
+      - name: Upload deploy files
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: deploy-bundle/.env,deploy-bundle/docker-compose.yml
+          target: /home/${{ secrets.EC2_USER }}/morak
+          strip_components: 1
+
+      - name: Remove local env file
+        if: always()
+        run: rm -f deploy-bundle/.env
+
+      # 새 이미지로 교체한 뒤 헬스 체크가 UP이 될 때까지 기다린다. 2분 안에 UP이 아니면 실패로 표시한다.
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_TAG: ${{ env.IMAGE }}:${{ env.SHA }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE_TAG,DOCKERHUB_USERNAME,DOCKERHUB_TOKEN
+          script: |
+            set -e
+            cd ~/morak
+            chmod 600 .env
+            # 서버에서 직접 docker compose를 다시 실행해도 같은 이미지를 쓰도록 .env에 남긴다.
+            echo "IMAGE=$IMAGE_TAG" >> .env
+            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            # 이미지는 SHA 태그라 -f(태그 없는 것만)로는 지워지지 않아 디스크가 찬다.
+            # pull 전에 실행 중인 컨테이너(app, redis)가 쓰지 않는 이미지를 모두 지운다.
+            docker image prune -af
+            docker compose pull app
+            docker compose up -d
+            for i in $(seq 1 24); do
+              if curl -fs http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+                echo "Deployed $IMAGE_TAG"
+                exit 0
+              fi
+              sleep 5
+            done
+            echo "Health check failed"
+            docker compose logs --tail 200 app
+            exit 1

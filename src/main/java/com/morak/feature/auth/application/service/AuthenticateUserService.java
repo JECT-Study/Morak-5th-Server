@@ -18,6 +18,6 @@ public class AuthenticateUserService {
 	public LoginUser authenticate(AuthUserId userId) {
 		UserState user = userAuthPort.findUser(userId).filter(UserState::active)
 				.orElseThrow(InvalidLoginUserException::new);
-		return new LoginUser(user.userId(), user.onboarded());
+		return new LoginUser(user.userId(), user.onboarded(), user.admin());
 	}
 }

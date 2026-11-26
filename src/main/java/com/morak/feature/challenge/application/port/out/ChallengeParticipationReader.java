@@ -1,5 +1,6 @@
 package com.morak.feature.challenge.application.port.out;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -17,6 +18,14 @@ public interface ChallengeParticipationReader {
 
 	/** 내 참가 중 지정한 상태만 participationId 내림차순 커서 페이지로 반환한다. */
 	List<MyParticipationRow> findMine(long userId, Set<String> statuses, Long cursor, int limit);
+
+	/** 시작 대기 중인 참가자(승인된 참여자와 승인 대기 신청자)에서 방장을 뺀 목록. 기간 재설정 알림 대상이다. */
+	List<WaitingParticipant> findWaitingParticipants(long challengeId);
+
+	/** 주어진 시각 전에 합류한 인원(방장 포함, 승인 대기 제외). 시작 처리에서 추가 모집 마감까지 최소 인원을 채웠는지 볼 때 쓴다. */
+	int countJoinedBefore(long challengeId, Instant before);
+
+	record WaitingParticipant(long participationId, long userId) {}
 
 	/** 내 챌린지 목록에 필요한 참가 정보. role, status는 위키 §5 enum 문자열 그대로다. */
 	record MyParticipationRow(long participationId, long challengeId, String role, String status) {}

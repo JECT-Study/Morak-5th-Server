@@ -8,7 +8,11 @@ public interface UserAuthPort {
 
 	UserState createUser(String email, String profileImageUrl);
 
-	Optional<UserState> updateSocialProfile(AuthUserId userId, String email, String profileImageUrl);
+	Optional<UserState> updateSocialProfile(AuthUserId userId, String email);
 
-	record UserState(AuthUserId userId, boolean active, boolean onboarded) {}
+	record UserState(AuthUserId userId, boolean active, boolean onboarded, boolean admin) {
+		public UserState(AuthUserId userId, boolean active, boolean onboarded) {
+			this(userId, active, onboarded, false);
+		}
+	}
 }

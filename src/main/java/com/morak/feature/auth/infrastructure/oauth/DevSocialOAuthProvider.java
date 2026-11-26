@@ -1,5 +1,6 @@
 package com.morak.feature.auth.infrastructure.oauth;
 
+import com.morak.feature.auth.domain.vo.SocialProvider;
 import com.morak.feature.auth.application.port.out.OAuthProviderException;
 import com.morak.feature.auth.application.port.out.SocialOAuthProvider;
 import com.morak.feature.auth.application.port.out.SocialProfile;
@@ -20,8 +21,8 @@ public class DevSocialOAuthProvider implements SocialOAuthProvider {
 	private static final Pattern CODE_PATTERN = Pattern.compile("[A-Za-z0-9_-]{1,64}");
 
 	@Override
-	public String provider() {
-		return "DEV";
+	public SocialProvider provider() {
+		return SocialProvider.DEV;
 	}
 
 	@Override
@@ -29,7 +30,7 @@ public class DevSocialOAuthProvider implements SocialOAuthProvider {
 		if (authorizationCode == null || !CODE_PATTERN.matcher(authorizationCode).matches()) {
 			throw new OAuthProviderException(true, new IllegalArgumentException("dev login code must match " + CODE_PATTERN));
 		}
-		return new SocialProfile(provider(), authorizationCode, null, null);
+		return new SocialProfile(provider().name(), authorizationCode, null, null);
 	}
 
 	@Override

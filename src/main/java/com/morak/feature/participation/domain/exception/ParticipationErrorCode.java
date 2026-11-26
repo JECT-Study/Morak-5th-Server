@@ -11,7 +11,10 @@ public enum ParticipationErrorCode implements ErrorCode {
 	INVALID_INVITE_CODE(HttpStatus.FORBIDDEN, "초대 코드가 올바르지 않습니다."),
 	CHALLENGE_NOT_RECRUITING(HttpStatus.CONFLICT, "모집 중인 챌린지가 아닙니다."),
 	CHALLENGE_FULL(HttpStatus.CONFLICT, "정원이 가득 찼습니다."),
-	PARTICIPATION_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "참여 가능한 챌린지를 초과했습니다");
+	PARTICIPATION_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "참여 가능한 챌린지를 초과했습니다"),
+	PENDING_APPLICATIONS_CHANGED(HttpStatus.CONFLICT, "승인 대기 신청이 바뀌었습니다. 다시 시도해 주세요."),
+	NOT_CHALLENGE_PARTICIPANT(HttpStatus.FORBIDDEN, "챌린지 참가자만 볼 수 있습니다."),
+	RESULT_NOT_FINALIZED(HttpStatus.CONFLICT, "아직 챌린지 결과가 확정되지 않았습니다.");
 
 	private final HttpStatus status;
 	private final String message;

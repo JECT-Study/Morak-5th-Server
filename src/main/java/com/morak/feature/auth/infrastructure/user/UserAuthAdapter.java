@@ -27,11 +27,11 @@ public class UserAuthAdapter implements UserAuthPort {
 	}
 
 	@Override
-	public Optional<UserState> updateSocialProfile(AuthUserId userId, String email, String profileImageUrl) {
-		return userService.updateSocialProfile(new UserId(userId.value()), email, profileImageUrl).map(UserAuthAdapter::toUserState);
+	public Optional<UserState> updateSocialProfile(AuthUserId userId, String email) {
+		return userService.updateSocialProfile(new UserId(userId.value()), email).map(UserAuthAdapter::toUserState);
 	}
 
 	private static UserState toUserState(UserAuthInfo user) {
-		return new UserState(new AuthUserId(user.userId().value()), user.active(), user.onboarded());
+		return new UserState(new AuthUserId(user.userId().value()), user.active(), user.onboarded(), user.admin());
 	}
 }

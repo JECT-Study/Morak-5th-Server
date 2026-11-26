@@ -49,6 +49,8 @@ public class SecurityConfig {
 						.requestMatchers("/auth/login/**").permitAll()
 						.requestMatchers(HttpMethod.POST, "/auth/refresh", "/auth/logout").permitAll()
 						.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+						// 배포 후 헬스 체크용. 상세 정보는 노출하지 않고 UP/DOWN만 응답한다.
+						.requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
 						// 웹소켓 핸드셰이크에는 JWT가 없다. 인증은 STOMP CONNECT의 1회용 티켓으로 한다.
 						.requestMatchers("/ws").permitAll()
 						// 위에서부터 처음 일치하는 규칙을 적용한다. 아래 API는 온보딩 전에도 로그인하면 호출할 수 있다.
@@ -59,6 +61,10 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.PATCH, "/users/me/marketing-agreements").authenticated()
 						// 온보딩을 마치지 않은 회원도 탈퇴할 수 있어야 한다.
 						.requestMatchers(HttpMethod.DELETE, "/users/me").authenticated()
+						// 운영진 전용 API. 온보딩을 마친 ADMIN만 접근한다(위키 §4.10). 일반 회원은 403이다.
+						.requestMatchers("/admin/**").access((authentication, context) -> new AuthorizationDecision(
+								authentication.get().getPrincipal() instanceof LoginUser user && user.onboarded()
+										&& user.admin()))
 						// 나머지 API는 온보딩 완료가 필요하다. LoginUser에는 요청 시 DB에서 조회한 상태가 들어 있다.
 						// 미완료 회원은 위의 deniedHandler에서 403을 받고, 미인증 요청은 entryPoint에서 401을 받는다.
 						.anyRequest().access((authentication, context) -> new AuthorizationDecision(

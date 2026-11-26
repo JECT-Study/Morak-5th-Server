@@ -1,8 +1,10 @@
 package com.morak.feature.auth.application.port.out;
 
+import com.morak.feature.auth.domain.vo.SocialProvider;
+
 public interface SocialOAuthProvider {
 
-	String provider();
+	SocialProvider provider();
 
 	String authorizationUri(String state);
 

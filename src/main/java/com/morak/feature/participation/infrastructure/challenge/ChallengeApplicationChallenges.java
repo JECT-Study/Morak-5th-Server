@@ -35,6 +35,11 @@ class ChallengeApplicationChallenges implements ApplicationChallenges {
 	}
 
 	@Override
+	public void changeOwner(long challengeId, long newOwnerUserId) {
+		challengeCommand.changeOwner(challengeId, newOwnerUserId);
+	}
+
+	@Override
 	public boolean canJoinMore(long userId) {
 		return ParticipationLimitPolicy.canJoinMore(() -> participationQuery.countOngoing(userId));
 	}
@@ -48,6 +53,7 @@ class ChallengeApplicationChallenges implements ApplicationChallenges {
 				challenge.inviteCode(),
 				challenge.recruiting(),
 				challenge.isFull(),
-				challenge.pointAmount());
+				challenge.pointAmount(),
+				challenge.capacity() - challenge.currentCount());
 	}
 }

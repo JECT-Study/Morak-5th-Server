@@ -144,8 +144,9 @@ public class JdbcParticipationQuery implements ParticipationQuery {
 	@Override
 	public List<Application> findPendingApplications(Long challengeId) {
 		return jdbc.sql("""
-				SELECT id, user_id, apply_message, applied_at FROM morak.participation
-				WHERE challenge_id = :challengeId AND status = 'PENDING'
+				SELECT id, user_id, apply_message, applied_at, status FROM morak.participation
+				WHERE challenge_id = :challengeId
+				AND (status = 'PENDING' OR (status = 'INVALIDATED' AND invalid_confirmed_at IS NULL))
 				ORDER BY applied_at, id
 				""")
 				.param("challengeId", challengeId)
@@ -153,8 +154,55 @@ public class JdbcParticipationQuery implements ParticipationQuery {
 						rs.getLong("id"),
 						rs.getLong("user_id"),
 						rs.getString("apply_message"),
-						toInstant(rs, "applied_at")))
+						toInstant(rs, "applied_at"),
+						"INVALIDATED".equals(rs.getString("status"))))
 				.list();
+	}
+
+	@Override
+	public List<Application> findDecidedApplications(Long challengeId, String status) {
+		if (!Set.of("ACTIVE", "REJECTED").contains(status)) {
+			throw new IllegalArgumentException("처리된 신청 상태가 아닙니다: " + status);
+		}
+		return jdbc.sql("""
+				SELECT id, user_id, apply_message, applied_at FROM morak.participation
+				WHERE challenge_id = :challengeId AND status = :status AND role <> 'HOST'
+				ORDER BY applied_at, id
+				""")
+				.param("challengeId", challengeId)
+				.param("status", status)
+				.query((rs, rowNum) -> new Application(
+						rs.getLong("id"),
+						rs.getLong("user_id"),
+						rs.getString("apply_message"),
+						toInstant(rs, "applied_at"),
+						false))
+				.list();
+	}
+
+	@Override
+	public Map<Long, ParticipationRecord> findRecordsByUserIds(Collection<Long> userIds) {
+		Map<Long, ParticipationRecord> result = new HashMap<>();
+		if (userIds.isEmpty()) {
+			return result;
+		}
+		jdbc.sql("""
+				SELECT user_id,
+					COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed_count,
+					COUNT(*) FILTER (WHERE status = 'EXPELLED') AS expelled_count
+				FROM morak.participation
+				WHERE user_id IN (:userIds) AND status IN ('COMPLETED', 'EXPELLED')
+				GROUP BY user_id
+				""")
+				.param("userIds", userIds)
+				.query((rs, rowNum) -> {
+					result.put(
+							rs.getLong("user_id"),
+							new ParticipationRecord(rs.getInt("completed_count"), rs.getInt("expelled_count")));
+					return rowNum;
+				})
+				.list();
+		return result;
 	}
 
 	@Override
