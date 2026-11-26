@@ -57,12 +57,12 @@ class JudgeCertificationServiceTest {
 	private final JudgeCertificationService service = new JudgeCertificationService(targets, store, notices, urls,
 			Clock.fixed(NOW, ZoneOffset.UTC));
 
-	private final List<Member> members = List.of(HOST, DEPUTY, MEMBER, MEMBER2);
+	private List<Member> members = List.of(HOST, DEPUTY, MEMBER, MEMBER2);
 
 	@BeforeEach
 	void setUp() {
 		challenge(0);
-		when(targets.findMembers(CHALLENGE)).thenReturn(members);
+		when(targets.findMembers(CHALLENGE)).thenAnswer(invocation -> members);
 		when(targets.findParticipants(any())).thenAnswer(invocation -> {
 			Collection<Long> ids = invocation.getArgument(0);
 			return members.stream().filter(m -> ids.contains(m.participationId()))
@@ -128,6 +128,19 @@ class JudgeCertificationServiceTest {
 		assertError(CertificationErrorCode.NOT_JUDGE, () -> service.approve(DEPUTY.userId(), CHALLENGE, 2L));
 		assertError(CertificationErrorCode.NOT_JUDGE, () -> service.approve(DEPUTY.userId(), CHALLENGE, 3L));
 		assertError(CertificationErrorCode.NOT_JUDGE, () -> service.approve(MEMBER2.userId(), CHALLENGE, 3L));
+		verify(store, never()).judge(anyLong(), anyString(), anyLong(), any(), any());
+	}
+
+	@Test
+	void expelledSubmitterIsNeitherListedNorJudged() {
+		// 오늘 제출한 뒤 12:05에 퇴장한 팀원. 인증은 다음 날 정오까지 PENDING으로 남는다.
+		Member expelled = new Member(104L, 5L, "MEMBER", "EXPELLED");
+		members = List.of(HOST, DEPUTY, MEMBER, MEMBER2, expelled);
+		when(store.findPending(CHALLENGE, NOW)).thenReturn(List.of(pending(3L, MEMBER), pending(5L, expelled)));
+		certification(5L, expelled);
+
+		assertEquals(List.of(3L), ids(service.pending(HOST.userId(), CHALLENGE)));
+		assertError(CertificationErrorCode.NOT_JUDGE, () -> service.reject(HOST.userId(), CHALLENGE, 5L, "흐려요"));
 		verify(store, never()).judge(anyLong(), anyString(), anyLong(), any(), any());
 	}
 

@@ -45,6 +45,7 @@ public class JudgeCertificationService {
 	static final String PENDING = "PENDING";
 	static final String APPROVED = "APPROVED";
 	static final String REJECTED = "REJECTED";
+	static final String EXPELLED = "EXPELLED";
 
 	private final CertificationJudgeTargets targets;
 	private final CertificationJudgeStore store;
@@ -72,8 +73,7 @@ public class JudgeCertificationService {
 		Map<Long, Member> submitters = targets.findParticipants(
 				rows.stream().map(PendingRow::participationId).distinct().toList());
 		List<PendingRow> mine = rows.stream()
-				.filter(row -> submitters.containsKey(row.participationId()))
-				.filter(row -> CertificationJudge.canJudge(judge.role(), submitters.get(row.participationId()).role()))
+				.filter(row -> judgeable(judge, submitters.get(row.participationId())))
 				.toList();
 		Map<Long, Profile> profiles = targets.findProfiles(
 				mine.stream().map(row -> submitters.get(row.participationId()).userId()).distinct().toList());
@@ -116,8 +116,7 @@ public class JudgeCertificationService {
 						CertificationErrorCode.JUDGMENT_NOT_FOUND, "certificationId=" + certificationId));
 		Member submitter = targets.findParticipants(List.of(certification.participationId()))
 				.get(certification.participationId());
-		if (challenge.pointAmount() > 0 || submitter == null
-				|| !CertificationJudge.canJudge(judge.role(), submitter.role())) {
+		if (challenge.pointAmount() > 0 || !judgeable(judge, submitter)) {
 			log.warn("판정 담당이 아닌 인증 판정 시도: certificationId={}, userId={}, role={}, pointAmount={}",
 					certificationId, userId, judge.role(), challenge.pointAmount());
 			throw new BusinessException(CertificationErrorCode.NOT_JUDGE, "certificationId=" + certificationId);
@@ -133,6 +132,12 @@ public class JudgeCertificationService {
 					"certificationId=" + certificationId + ", status=" + current.status());
 		}
 		return new Target(challenge, submitter, certification);
+	}
+
+	// 퇴장자의 남은 인증은 집계에서 빠지므로(D-12) 판정하지 않는다. 거절하면 퇴장자에게 실패 알림이 가기 때문이다.
+	private static boolean judgeable(Member judge, Member submitter) {
+		return submitter != null && !EXPELLED.equals(submitter.status())
+				&& CertificationJudge.canJudge(judge.role(), submitter.role());
 	}
 
 	private Challenge challenge(long challengeId) {
