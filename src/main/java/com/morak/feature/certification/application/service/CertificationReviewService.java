@@ -39,7 +39,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>거절하면 방장·부방장 판정과 같이 제출자에게 알림 #12를 보낸다(위키 §4.8). 판정과 알림은 한 트랜잭션이다. 제출자가 이미 퇴장했으면
  * 집계에서 빠지는 인증이라 알림을 보내지 않는다(D-42 ③과 같은 이유, D-45).
  *
- * <p>TODO(D-31): 그 날짜의 미판정이 0건이 되면 퇴장 판정·결과 확정·정산을 이어서 실행한다. 해당 기능이 생기면 판정 직후에 호출한다.
+ * <p>승인·거절이 커밋된 직후 퇴장 판정(⑦)을 부른다. 그 날짜의 미판정이 0건일 때만 판정한다(D-4, D-48).
+ * TODO(D-31): 마지막 날 검수 완료 후 결과 확정·정산(⑧)은 해당 기능이 생기면 연결한다.
  */
 @Service
 public class CertificationReviewService {
@@ -55,17 +56,19 @@ public class CertificationReviewService {
 	private final CertificationJudgeTargets targets;
 	private final CertificationJudgeNotices notices;
 	private final CertificationImageUrls imageUrls;
+	private final ExpelFailedParticipantsService expel;
 	private final TransactionTemplate transaction;
 	private final Clock clock;
 
 	public CertificationReviewService(CertificationReviewStore store, CertificationJudgeStore judgeStore,
 			CertificationJudgeTargets targets, CertificationJudgeNotices notices, CertificationImageUrls imageUrls,
-			TransactionTemplate transaction, Clock clock) {
+			ExpelFailedParticipantsService expel, TransactionTemplate transaction, Clock clock) {
 		this.store = store;
 		this.judgeStore = judgeStore;
 		this.targets = targets;
 		this.notices = notices;
 		this.imageUrls = imageUrls;
+		this.expel = expel;
 		this.transaction = transaction;
 		this.clock = clock;
 	}
@@ -106,7 +109,7 @@ public class CertificationReviewService {
 	// 판정은 조건부 UPDATE 한 번이라 트랜잭션이 필요 없다. 사진 서명(Supabase 호출) 동안 DB 연결·행 잠금을 쥐지 않으려고 트랜잭션을 두지 않는다.
 	public Detail approve(long adminUserId, long certificationId) {
 		judge(adminUserId, certificationId, APPROVED, null);
-		return toDetail(find(certificationId));
+		return afterJudged(find(certificationId));
 	}
 
 	/** 거절과 알림 #12를 한 트랜잭션에서 남긴다. 사진 서명은 트랜잭션 밖에서 한다. */
@@ -116,7 +119,7 @@ public class CertificationReviewService {
 			judge(adminUserId, certificationId, REJECTED, rejectReason.value());
 			notifyRejected(certificationId);
 		});
-		return toDetail(find(certificationId));
+		return afterJudged(find(certificationId));
 	}
 
 	/** 알림 #12: 퇴장 기준까지 남은 실패 횟수 = 퇴장 기준 − (거절·미제출 수). 방금 거절한 건이 이미 세어진다. */
@@ -147,6 +150,12 @@ public class CertificationReviewService {
 				certificationId, current.status(), newStatus, adminUserId);
 		throw new BusinessException(CertificationErrorCode.ALREADY_JUDGED,
 				"certificationId=" + certificationId + ", status=" + current.status());
+	}
+
+	/** 판정이 커밋된 뒤라야 동시 검수에서 마지막 커밋이 미판정 0건을 본다. */
+	private Detail afterJudged(Row row) {
+		expel.runAfterReview(row.challengeId(), row.certDate());
+		return toDetail(row);
 	}
 
 	private Row find(long certificationId) {

@@ -31,14 +31,14 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 결과가 같다.
  *
  * <p>TODO(D-46): 진행 기간(오늘 ≤ 종료일)에만 판정하므로, 종료일 다음 날 정오에 마지막 날 실패로 기준에 닿는 사람은 퇴장시키지 않는다.
+ *
+ * <p>포인트 공개 챌린지는 운영진 검수 직후 {@link #runAfterReview}로 같은 퇴장·알림 로직을 탄다(⑦).
  */
 @Service
 public class ExpelFailedParticipantsService {
 
 	private static final Logger log = LoggerFactory.getLogger(ExpelFailedParticipantsService.class);
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-	/** ⑥은 포인트 없는 챌린지만 다룬다. 포인트 챌린지는 운영진 검수 완료(⑦)에서 판정한다. */
-	private static final int NO_POINT = 0;
 
 	private final CertificationExpelStore store;
 	private final CertificationExpelTargets targets;
@@ -73,6 +73,40 @@ public class ExpelFailedParticipantsService {
 		return expelled;
 	}
 
+	/**
+	 * ⑦ 운영진 검수 완료 시 퇴장 판정(D-4). 그 챌린지에서 미판정이 남지 않은 마지막 날짜(어제 이하)까지의 실패로 판정하고,
+	 * 방금 검수한 날짜가 그 범위 밖이면(같은 날·앞 날짜에 미판정이 남았거나 오늘 인증) 판정하지 않는다.
+	 *
+	 * <p>검수 판정이 커밋된 뒤 호출해야 한다. 마지막 두 건을 동시에 검수해도 나중에 커밋한 쪽이 미판정 0건을 보므로 판정이 빠지지 않고, 둘
+	 * 다 판정해도 참가 도메인이 챌린지·참가자를 잠근 뒤 ACTIVE만 퇴장시켜 결과가 한 번과 같다. 실패해도 검수 결과는 그대로 두고 로그만
+	 * 남긴다.
+	 *
+	 * <p>TODO(D-48): 실패 집계 범위(미판정이 없는 마지막 날짜까지, 최대 어제)와 진행 기간(오늘 ≤ 종료일)에만 판정하는 것은 제안이다.
+	 *
+	 * @return 퇴장시킨 참가자 수
+	 */
+	public int runAfterReview(long challengeId, LocalDate certDate) {
+		Instant now = clock.instant();
+		LocalDate today = LocalDate.ofInstant(now, KST);
+		try {
+			LocalDate yesterday = today.minusDays(1);
+			LocalDate through = store.findEarliestPendingDate(challengeId)
+					.map(pending -> pending.minusDays(1))
+					.filter(day -> day.isBefore(yesterday))
+					.orElse(yesterday);
+			if (certDate.isAfter(through)) {
+				return 0;
+			}
+			List<FailCount> rows = store.findReviewedFailCounts(challengeId, through, today).stream()
+					.filter(row -> row.failCount() >= ExpelThreshold.of(row.startDate(), row.endDate()))
+					.toList();
+			return rows.isEmpty() ? 0 : transaction.execute(status -> process(rows, today, now));
+		} catch (RuntimeException exception) {
+			log.error("검수 후 퇴장 판정 실패: challengeId={}, certDate={}", challengeId, certDate, exception);
+			return 0;
+		}
+	}
+
 	private int process(List<FailCount> rows, LocalDate today, Instant now) {
 		FailCount first = rows.get(0);
 		Map<Long, FailCount> byParticipation = rows.stream()
@@ -80,10 +114,10 @@ public class ExpelFailedParticipantsService {
 		Outcome outcome = targets.expel(first.challengeId(), byParticipation.keySet(), today, now);
 		for (Expelled member : outcome.expelled()) {
 			notices.expelled(member.userId(), first.challengeId(), member.participationId(), first.title(),
-					byParticipation.get(member.participationId()).failCount(), NO_POINT);
+					byParticipation.get(member.participationId()).failCount(), first.pointAmount());
 		}
 		for (long userId : outcome.earlyEndedUserIds()) {
-			notices.earlyEnded(userId, first.challengeId(), first.title(), NO_POINT);
+			notices.earlyEnded(userId, first.challengeId(), first.title(), first.pointAmount());
 		}
 		log.info("퇴장 판정: challengeId={}, expelled={}, earlyEnded={}", first.challengeId(), outcome.expelled().size(),
 				!outcome.earlyEndedUserIds().isEmpty());
