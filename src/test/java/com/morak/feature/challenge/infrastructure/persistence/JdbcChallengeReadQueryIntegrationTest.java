@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +22,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-/** 내 챌린지 목록용 챌린지 일괄 조회를 실제 PostgreSQL(Testcontainers)로 검증한다. Docker가 실행 중이어야 한다. */
+/** 챌린지 일괄 조회와 초대 코드 조회를 실제 PostgreSQL(Testcontainers)로 검증한다. Docker가 실행 중이어야 한다. */
 @SpringBootTest(properties = "morak.auth.jwt.secret=integration-test-secret-integration-test-secret")
 class JdbcChallengeReadQueryIntegrationTest {
 
@@ -75,6 +76,41 @@ class JdbcChallengeReadQueryIntegrationTest {
 				""")
 				.param("code", String.format("%06d", inviteSeq.incrementAndGet()))
 				.param("status", status)
+				.query(Long.class)
+				.single();
+	}
+
+	@Test
+	void findsPrivateChallengeByInviteCode() {
+		long id = challenge("123456", "PRIVATE", "START_HELD", false);
+
+		var found = query.findByInviteCode("123456").orElseThrow();
+
+		assertEquals(id, found.id());
+		assertEquals(ChallengeVisibility.PRIVATE, found.visibility());
+		assertEquals(ChallengeStatus.START_HELD, found.status());
+	}
+
+	@Test
+	void ignoresUnknownAndDeletedInviteCodes() {
+		challenge("123456", "PUBLIC", "RECRUITING", true);
+
+		assertTrue(query.findByInviteCode("123456").isEmpty());
+		assertTrue(query.findByInviteCode("999999").isEmpty());
+	}
+
+	private long challenge(String code, String visibility, String status, boolean deleted) {
+		return jdbc.sql("""
+				INSERT INTO morak.challenge (owner_user_id, title, category, invite_code, visibility, status, start_date,
+											end_date, duration_weeks, capacity, created_at, updated_at, deleted_at)
+				VALUES (1, '테스트 챌린지', 'STUDY', :code, :visibility, :status, DATE '2026-12-01', DATE '2026-12-07', 1, 5,
+						now(), now(), CASE WHEN :deleted THEN now() END)
+				RETURNING id
+				""")
+				.param("code", code)
+				.param("visibility", visibility)
+				.param("status", status)
+				.param("deleted", deleted)
 				.query(Long.class)
 				.single();
 	}

@@ -4,14 +4,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.morak.common.exception.BusinessException;
 import com.morak.common.exception.CommonErrorCode;
+import com.morak.common.exception.RateLimitedException;
 import com.morak.feature.challenge.application.dto.query.ListChallengesQuery;
 import com.morak.feature.challenge.application.port.out.ChallengeParticipationReader;
+import com.morak.feature.challenge.application.port.out.InviteCodeAttemptLimiter;
+import com.morak.feature.challenge.application.port.out.InviteCodeAttemptLimiter.Decision;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeDetail;
 import com.morak.feature.challenge.application.query.ChallengeReadQuery.ChallengeSummary;
@@ -19,18 +27,29 @@ import com.morak.feature.challenge.domain.enums.ChallengeCategory;
 import com.morak.feature.challenge.domain.enums.ChallengeStatus;
 import com.morak.feature.challenge.domain.enums.ChallengeVisibility;
 import com.morak.feature.challenge.domain.exception.ChallengeErrorCode;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ReadChallengeServiceTest {
 
 	private final ChallengeReadQuery challenges = mock(ChallengeReadQuery.class);
 	private final ChallengeParticipationReader participations = mock(ChallengeParticipationReader.class);
 	private final ChallengeCoverImages coverImages = mock(ChallengeCoverImages.class);
-	private final ReadChallengeService service = new ReadChallengeService(challenges, participations, coverImages);
+	private final InviteCodeAttemptLimiter attemptLimiter = mock(InviteCodeAttemptLimiter.class);
+	private final ReadChallengeService service = new ReadChallengeService(challenges, participations, coverImages, attemptLimiter);
+
+	@BeforeEach
+	void allowInviteCodeAttempts() {
+		when(attemptLimiter.tryAcquire(anyLong())).thenReturn(Decision.allow());
+	}
 
 	@Test
 	void returnsNextCursorFromLastReturnedRowWhenMoreResultsExist() {
@@ -91,8 +110,127 @@ class ReadChallengeServiceTest {
 		verifyNoInteractions(coverImages);
 	}
 
+	@Test
+	void allowsPrivateChallengeByInviteCodeForNonApplicantWithoutJoining() {
+		when(challenges.findByInviteCode("123456")).thenReturn(Optional.of(challenge(ChallengeVisibility.PRIVATE, 20L)));
+		when(participations.findStatus(10L, 30L)).thenReturn(Optional.empty());
+
+		var result = service.getByInviteCode("123456", 30L);
+
+		assertEquals(10L, result.id());
+		assertEquals(null, result.myParticipationStatus());
+		assertTrue(result.canApply());
+	}
+
+	@Test
+	void findsChallengeByUppercaseAlphanumericInviteCodeWithoutCountingFailure() {
+		when(challenges.findByInviteCode("AB12CZ")).thenReturn(Optional.of(challenge(ChallengeVisibility.PUBLIC, 20L)));
+		when(participations.findStatus(10L, 30L)).thenReturn(Optional.empty());
+
+		var result = service.getByInviteCode("AB12CZ", 30L);
+
+		assertEquals(10L, result.id());
+		verify(attemptLimiter).release(30L, false);
+	}
+
+	@Test
+	void showsMyStatusWhenEnteringByInviteCode() {
+		when(challenges.findByInviteCode("123456")).thenReturn(Optional.of(challenge(ChallengeVisibility.PUBLIC, 20L)));
+		when(participations.findStatus(10L, 30L)).thenReturn(Optional.of("PENDING"));
+
+		var result = service.getByInviteCode("123456", 30L);
+
+		assertEquals("PENDING", result.myParticipationStatus());
+		assertFalse(result.canApply());
+	}
+
+	@Test
+	void rejectsUnknownInviteCode() {
+		when(challenges.findByInviteCode("000000")).thenReturn(Optional.empty());
+
+		BusinessException error = assertThrows(BusinessException.class, () -> service.getByInviteCode("000000", 30L));
+
+		assertEquals(ChallengeErrorCode.INVALID_INVITE_CODE, error.getErrorCode());
+		assertEquals("유효하지 않은 코드입니다", error.getErrorCode().message());
+		verify(attemptLimiter).release(30L, true);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", "12345", "1234567", "12a456", "１２３４５６"})
+	void rejectsInviteCodeWithWrongFormatWithoutQuerying(String code) {
+		BusinessException error = assertThrows(BusinessException.class, () -> service.getByInviteCode(code, 30L));
+
+		assertEquals(ChallengeErrorCode.INVALID_INVITE_CODE, error.getErrorCode());
+		verify(attemptLimiter).release(30L, true);
+		verifyNoInteractions(challenges);
+	}
+
+	@Test
+	void blocksEvenValidInviteCodeWhenAttemptsExceeded() {
+		when(attemptLimiter.tryAcquire(30L)).thenReturn(Decision.deny(Duration.ofSeconds(90)));
+
+		RateLimitedException error = assertThrows(RateLimitedException.class, () -> service.getByInviteCode("123456", 30L));
+
+		assertEquals(ChallengeErrorCode.INVITE_CODE_ATTEMPTS_EXCEEDED, error.getErrorCode());
+		assertEquals(429, error.getErrorCode().status().value());
+		assertEquals(90, error.retryAfterSeconds());
+		assertEquals("userId=30", error.getDetail());
+		verifyNoInteractions(challenges);
+		verify(attemptLimiter, never()).release(anyLong(), anyBoolean());
+	}
+
+	@Test
+	void doesNotCountValidOrEndedInviteCodeAsFailure() {
+		when(challenges.findByInviteCode("123456")).thenReturn(Optional.of(challenge(ChallengeVisibility.PUBLIC, 20L)));
+		when(challenges.findByInviteCode("654321"))
+				.thenReturn(Optional.of(challenge(ChallengeVisibility.PUBLIC, 20L, ChallengeStatus.ENDED)));
+
+		service.getByInviteCode("123456", 30L);
+		assertThrows(BusinessException.class, () -> service.getByInviteCode("654321", 30L));
+
+		verify(attemptLimiter, times(2)).release(30L, false);
+		verify(attemptLimiter, never()).release(30L, true);
+	}
+
+	@Test
+	void releasesAttemptWithoutFailureWhenLookupThrows() {
+		when(challenges.findByInviteCode("123456")).thenThrow(new IllegalStateException("db down"));
+
+		assertThrows(IllegalStateException.class, () -> service.getByInviteCode("123456", 30L));
+
+		verify(attemptLimiter).release(30L, false);
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = ChallengeStatus.class, names = {"FINALIZING", "ENDED", "DISCARDED"})
+	void rejectsEndedChallengeByInviteCode(ChallengeStatus status) {
+		when(challenges.findByInviteCode("123456")).thenReturn(Optional.of(challenge(ChallengeVisibility.PRIVATE, 20L, status)));
+
+		BusinessException error = assertThrows(BusinessException.class, () -> service.getByInviteCode("123456", 30L));
+
+		assertEquals(ChallengeErrorCode.ALREADY_ENDED, error.getErrorCode());
+		assertEquals("CHALLENGE_ALREADY_ENDED", error.getErrorCode().code());
+		assertEquals("이미 종료된 챌린지입니다", error.getErrorCode().message());
+		verifyNoInteractions(participations, coverImages);
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = ChallengeStatus.class, names = {"START_HELD", "IN_PROGRESS"})
+	void allowsNotEndedChallengeByInviteCode(ChallengeStatus status) {
+		when(challenges.findByInviteCode("123456")).thenReturn(Optional.of(challenge(ChallengeVisibility.PUBLIC, 20L, status)));
+
+		var result = service.getByInviteCode("123456", 30L);
+
+		assertEquals(status.name(), result.status());
+		assertEquals(status == ChallengeStatus.START_HELD, result.canApply());
+	}
+
 	private ChallengeDetail challenge(ChallengeVisibility visibility, long ownerId) {
+		return challenge(visibility, ownerId, ChallengeStatus.RECRUITING);
+	}
+
+	private ChallengeDetail challenge(ChallengeVisibility visibility, long ownerId, ChallengeStatus status) {
 		return new ChallengeDetail(10L, ownerId, "독서", "함께 읽어요", visibility, ChallengeCategory.READING, "목적", "매일 독서",
-				"인증 규칙", null, ChallengeStatus.RECRUITING, LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 7), 3, 1, 0, "challenges/test");
+				"인증 규칙", null, status, LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 7), 3, 1, 0, "challenges/test");
 	}
 }

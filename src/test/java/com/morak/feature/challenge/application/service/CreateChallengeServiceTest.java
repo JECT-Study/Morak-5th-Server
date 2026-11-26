@@ -52,7 +52,7 @@ class CreateChallengeServiceTest {
 	}
 
 	@Test
-	void retriesAnInviteCodeCollisionAndReturnsSixDigits() {
+	void retriesAnInviteCodeCollisionAndReturnsSixUppercaseAlphanumerics() {
 		CreateChallengeCommand command = command(LocalDate.of(2026, 11, 11));
 		when(transaction.create(eq(1L), eq(command), anyString(), isNull()))
 				.thenThrow(new InviteCodeConflictException(null))
@@ -61,7 +61,7 @@ class CreateChallengeServiceTest {
 		var created = service.create(1L, command);
 
 		assertEquals(12L, created.challengeId());
-		assertTrue(created.inviteCode().matches("[0-9]{6}"));
+		assertTrue(created.inviteCode().matches("[0-9A-Z]{6}"));
 	}
 
 	@Test

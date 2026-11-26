@@ -6,6 +6,7 @@ import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeMismatchException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -35,8 +36,11 @@ public class GlobalExceptionHandler {
 		} else {
 			log.warn(format, args);
 		}
-		return ResponseEntity.status(errorCode.status())
-				.body(ApiResponse.failure(errorCode.code(), errorCode.message()));
+		var response = ResponseEntity.status(errorCode.status());
+		if (exception instanceof RateLimitedException rateLimited) {
+			response.header(HttpHeaders.RETRY_AFTER, String.valueOf(rateLimited.retryAfterSeconds()));
+		}
+		return response.body(ApiResponse.failure(errorCode.code(), errorCode.message()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
