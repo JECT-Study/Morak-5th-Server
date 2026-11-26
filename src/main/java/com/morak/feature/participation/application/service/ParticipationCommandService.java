@@ -208,7 +208,7 @@ class ParticipationCommandService implements ParticipationCommand {
 
 	/**
 	 * 한 명씩 승계한 뒤 퇴장시켜, 같은 날 방장·부방장이 함께 퇴장해도 다음 사람의 승계가 앞사람의 결과를 본다.
-	 * 승계·남은 인원 조회는 JPQL이라 앞서 바꾼 상태가 먼저 반영된다(flush). TODO(D-45): 공개 챌린지가 한 번에 1명 이하로
+	 * 승계·남은 인원 조회는 JPQL이라 앞서 바꾼 상태가 먼저 반영된다(flush). TODO(D-46): 공개 챌린지가 한 번에 1명 이하로
 	 * 줄어도 조기 종료로 처리하는 것과, 비공개에서 1명만 남는 경우의 폐지(D-37 ②)를 아직 하지 않는 것은 제안이다.
 	 */
 	@Override

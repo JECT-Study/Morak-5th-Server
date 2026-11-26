@@ -30,7 +30,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>챌린지마다 한 트랜잭션이라 한 건이 실패해도 그 챌린지만 롤백된다. 이미 퇴장한 사람은 ACTIVE가 아니라 다시 세지 않으므로 여러 번 돌려도
  * 결과가 같다.
  *
- * <p>TODO(D-45): 진행 기간(오늘 ≤ 종료일)에만 판정하므로, 종료일 다음 날 정오에 마지막 날 실패로 기준에 닿는 사람은 퇴장시키지 않는다.
+ * <p>TODO(D-46): 진행 기간(오늘 ≤ 종료일)에만 판정하므로, 종료일 다음 날 정오에 마지막 날 실패로 기준에 닿는 사람은 퇴장시키지 않는다.
  */
 @Service
 public class ExpelFailedParticipantsService {

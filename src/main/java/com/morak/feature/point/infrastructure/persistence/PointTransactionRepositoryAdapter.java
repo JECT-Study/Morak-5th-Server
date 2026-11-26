@@ -1,7 +1,9 @@
 package com.morak.feature.point.infrastructure.persistence;
 
+import com.morak.feature.point.domain.entity.PointGrantReason;
 import com.morak.feature.point.domain.entity.PointTransaction;
 import com.morak.feature.point.domain.repository.PointTransactionRepository;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.PageRequest;
@@ -24,6 +26,11 @@ public class PointTransactionRepositoryAdapter implements PointTransactionReposi
 	@Override
 	public Optional<PointTransaction> findByIdempotencyKey(String idempotencyKey) {
 		return jpaRepository.findByIdempotencyKey(idempotencyKey);
+	}
+
+	@Override
+	public long countGrants(Long accountId, PointGrantReason reason, LocalDateTime fromInclusive, LocalDateTime toExclusive) {
+		return jpaRepository.countGrants(accountId, reason, fromInclusive, toExclusive);
 	}
 
 	@Override

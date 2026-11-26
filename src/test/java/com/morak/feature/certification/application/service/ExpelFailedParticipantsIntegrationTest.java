@@ -125,7 +125,7 @@ class ExpelFailedParticipantsIntegrationTest {
 		assertEquals("FINALIZING", statusOf(challenge));
 	}
 
-	/** TODO(D-45): 한 번에 1명 이하로 줄어도 조기 종료로 본다. */
+	/** TODO(D-46): 한 번에 1명 이하로 줄어도 조기 종료로 본다. */
 	@Test
 	void publicChallengeDroppingBelowTwoAtOnceAlsoEndsEarly() {
 		long challenge = challenge("PUBLIC", 0);
@@ -164,7 +164,7 @@ class ExpelFailedParticipantsIntegrationTest {
 		assertEquals(List.of("4:HOST:ACTIVE:"), members(pointChallenge));
 	}
 
-	/** TODO(D-45): 종료일 다음 날 정오에는 판정하지 않아 마지막 날 실패로 기준에 닿아도 퇴장시키지 않는다. */
+	/** TODO(D-46): 종료일 다음 날 정오에는 판정하지 않아 마지막 날 실패로 기준에 닿아도 퇴장시키지 않는다. */
 	@Test
 	void dayAfterEndDateIsNotJudged() {
 		long challenge = challenge("PUBLIC", 0);
