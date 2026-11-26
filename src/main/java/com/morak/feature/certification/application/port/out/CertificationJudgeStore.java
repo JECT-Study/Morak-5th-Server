@@ -19,6 +19,15 @@ public interface CertificationJudgeStore {
 	/** 그 참가자의 누적 실패(거절·미제출) 수(위키 §4.4 fail_count). */
 	int countFailures(long participationId);
 
+	/** 판정 마감이 지난 PENDING 인증이 있는 챌린지. id 순. */
+	List<Long> findChallengesWithOverdue(Instant now);
+
+	/** 그 챌린지의 판정 마감이 지난 PENDING 인증을 AUTO_APPROVED로 바꾸고, 바뀐 인증을 돌려준다. */
+	List<ApprovedDay> autoApprove(long challengeId, Instant now);
+
+	/** 그 챌린지의 모든 AUTO_APPROVED 인증. 경고 횟수 계산에 쓴다(위키 §4.4). */
+	List<ApprovedDay> findAutoApproved(long challengeId);
+
 	/** @param imageKey 사진이 없으면 null */
 	record PendingRow(long certificationId, long participationId, LocalDate certDate, Instant submittedAt,
 			Instant judgeDueAt, String imageKey) {}
@@ -26,4 +35,6 @@ public interface CertificationJudgeStore {
 	/** @param judgeDueAt 포인트 챌린지(운영진 검수)면 null */
 	record JudgeRow(long certificationId, long challengeId, long participationId, LocalDate certDate, String status,
 			Instant judgeDueAt) {}
+
+	record ApprovedDay(long participationId, LocalDate certDate) {}
 }

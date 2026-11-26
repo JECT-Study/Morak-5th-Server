@@ -81,6 +81,47 @@ class JdbcCertificationJudgeStore implements CertificationJudgeStore {
 				.single();
 	}
 
+	@Override
+	public List<Long> findChallengesWithOverdue(Instant now) {
+		return jdbc.sql("""
+				SELECT DISTINCT challenge_id FROM morak.certification
+				WHERE status = 'PENDING' AND judge_due_at <= :now
+				ORDER BY challenge_id
+				""")
+				.param("now", utc(now))
+				.query(Long.class)
+				.list();
+	}
+
+	@Override
+	public List<ApprovedDay> autoApprove(long challengeId, Instant now) {
+		// 판정자는 없고(judged_by NULL) 처리 시각만 남긴다. 상태 조건부라 다시 돌려도 바뀌는 행이 없다.
+		return jdbc.sql("""
+				UPDATE morak.certification SET status = 'AUTO_APPROVED', judged_at = :now, updated_at = :now
+				WHERE challenge_id = :challengeId AND status = 'PENDING' AND judge_due_at <= :now
+				RETURNING participation_id, cert_date
+				""")
+				.param("challengeId", challengeId)
+				.param("now", utc(now))
+				.query((rs, rowNum) -> approvedDay(rs))
+				.list();
+	}
+
+	@Override
+	public List<ApprovedDay> findAutoApproved(long challengeId) {
+		return jdbc.sql("""
+				SELECT participation_id, cert_date FROM morak.certification
+				WHERE challenge_id = :challengeId AND status = 'AUTO_APPROVED'
+				""")
+				.param("challengeId", challengeId)
+				.query((rs, rowNum) -> approvedDay(rs))
+				.list();
+	}
+
+	private static ApprovedDay approvedDay(ResultSet rs) throws SQLException {
+		return new ApprovedDay(rs.getLong("participation_id"), rs.getObject("cert_date", LocalDate.class));
+	}
+
 	private static LocalDateTime utc(Instant instant) {
 		return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
 	}

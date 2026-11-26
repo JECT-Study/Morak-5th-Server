@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.morak.feature.certification.application.port.out.CertificationJudgeStore;
+import com.morak.feature.certification.application.port.out.CertificationJudgeStore.ApprovedDay;
 import com.morak.feature.certification.application.port.out.CertificationJudgeStore.PendingRow;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -104,6 +105,26 @@ class CertificationJudgeStoreIntegrationTest {
 		insertOn(DAY, 101L, "FAILED", DUE, null);
 
 		assertEquals(2, store.countFailures(100L));
+	}
+
+	@Test
+	void autoApprovesOnlyOverduePendingOnceAndKeepsRejectedAndFailed() {
+		long overdue = insert(100L, "PENDING", DUE, null);
+		insert(101L, "PENDING", DUE.plusSeconds(86_400), null); // 오늘 제출분, 내일 정오 마감
+		insert(102L, "PENDING", null, null); // 포인트 챌린지 인증(운영진 검수)
+		insert(103L, "REJECTED", DUE, null);
+		insert(104L, "FAILED", DUE, null);
+
+		assertEquals(List.of(challengeId), store.findChallengesWithOverdue(DUE));
+		assertEquals(List.of(new ApprovedDay(100L, DAY)), store.autoApprove(challengeId, DUE));
+		assertEquals(List.of(), store.autoApprove(challengeId, DUE));
+		assertEquals(List.of(), store.findChallengesWithOverdue(DUE));
+
+		assertEquals("AUTO_APPROVED", store.findById(overdue).orElseThrow().status());
+		assertEquals(List.of(new ApprovedDay(100L, DAY)), store.findAutoApproved(challengeId));
+		assertEquals(List.of("PENDING", "PENDING", "REJECTED", "FAILED"), jdbc.sql("""
+				SELECT status FROM morak.certification WHERE id <> :id ORDER BY participation_id
+				""").param("id", overdue).query(String.class).list());
 	}
 
 	private long insert(long participationId, String status, Instant judgeDueAt, String imageKey) {
