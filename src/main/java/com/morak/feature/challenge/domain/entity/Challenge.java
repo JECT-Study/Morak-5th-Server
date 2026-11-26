@@ -230,6 +230,28 @@ public class Challenge extends BaseEntity {
 		this.status = ChallengeStatus.FINALIZING;
 	}
 
+	/**
+	 * 종료일이 지나 결과 확정 대기(FINALIZING)로 둔다(위키 §4.2 상태, §4.5 정산 실행 규칙). 진행 중(IN_PROGRESS)이고
+	 * 종료일이 오늘보다 앞일 때만 가능하다.
+	 */
+	public void beginFinalizing(LocalDate today) {
+		if (status != ChallengeStatus.IN_PROGRESS || !endDate.isBefore(today)) {
+			log.warn("챌린지 상태 전이 거절: challengeId={}, from={}, to={}, endDate={}, today={}", id, status,
+					ChallengeStatus.FINALIZING, endDate, today);
+			throw new BusinessException(ChallengeErrorCode.NOT_FINALIZABLE);
+		}
+		this.status = ChallengeStatus.FINALIZING;
+	}
+
+	/** 결과가 확정돼 종료(ENDED)한다(위키 §4.5). 결과 확정 대기(FINALIZING)에서만 가능하다. */
+	public void end() {
+		if (status != ChallengeStatus.FINALIZING) {
+			log.warn("챌린지 상태 전이 거절: challengeId={}, from={}, to={}", id, status, ChallengeStatus.ENDED);
+			throw new BusinessException(ChallengeErrorCode.NOT_FINALIZABLE);
+		}
+		this.status = ChallengeStatus.ENDED;
+	}
+
 	/** 방장이 바뀐다(방장·부방장 승계). 참가자의 역할 변경은 참가 도메인이 한다. */
 	public void changeOwner(long newOwnerUserId) {
 		this.ownerUserId = newOwnerUserId;

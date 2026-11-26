@@ -29,6 +29,7 @@ public class Participation {
 	public static final String END_REASON_DISCARDED = "DISCARDED";
 	public static final String END_REASON_FAIL_LIMIT = "FAIL_LIMIT";
 	public static final String END_REASON_EARLY_END = "EARLY_END";
+	public static final String END_REASON_COMPLETED = "COMPLETED";
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -181,6 +182,11 @@ public class Participation {
 	/** 공개 챌린지가 2명만 남아 조기 종료된다(위키 §4.4 조기 종료). 참여 중(ACTIVE)에서만 가능하다. */
 	public void endEarly(Instant now) {
 		end(ParticipationStatus.EARLY_ENDED, END_REASON_EARLY_END, now);
+	}
+
+	/** 정상 종료한 챌린지의 결과가 확정돼 완주한다(위키 §4.5). 참여 중(ACTIVE)에서만 가능하다. */
+	public void complete(Instant now) {
+		end(ParticipationStatus.COMPLETED, END_REASON_COMPLETED, now);
 	}
 
 	private void end(ParticipationStatus to, String reason, Instant now) {
