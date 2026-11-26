@@ -1,5 +1,6 @@
 package com.morak.feature.challenge.infrastructure.scheduling;
 
+import com.morak.feature.challenge.application.port.out.ChallengeCertificationFailures;
 import com.morak.feature.challenge.application.service.DiscardExpiredChallengesService;
 import com.morak.feature.challenge.application.service.StartDueChallengesService;
 import java.time.Clock;
@@ -11,9 +12,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 매일 00:00 KST 챌린지 배치(위키 §4.9). 같은 00:00 배치에서 시작(충족) 검사를 자동 폐기보다 먼저 해야 하므로(§4.2)
- * 두 작업을 별도 {@code @Scheduled}로 나누지 않고 이 메서드 하나에서 ② 시작 처리 → ③ 자동 폐기 순서로 부른다.
- * 오늘 날짜는 한 번만 계산해 두 단계가 같은 날짜를 보게 한다. 한 단계가 실패해도 다음 단계는 돈다.
+ * 매일 00:00 KST 챌린지 배치(위키 §4.9). 같은 00:00 배치에서 순서가 중요하므로(§4.2, §4.9) 작업을 별도 {@code @Scheduled}로
+ * 나누지 않고 이 메서드 하나에서 ① 미제출 FAILED 생성 → ② 시작 처리 → ③ 자동 폐기 순서로 부른다.
+ * 오늘 날짜는 한 번만 계산해 모든 단계가 같은 날짜를 보게 한다. 한 단계가 실패해도 다음 단계는 돈다.
  * cron 값이 '-'면 실행하지 않는다.
  */
 @Component
@@ -22,12 +23,15 @@ public class ChallengeDailyScheduler {
 	private static final Logger log = LoggerFactory.getLogger(ChallengeDailyScheduler.class);
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
+	private final ChallengeCertificationFailures certificationFailures;
 	private final StartDueChallengesService startDueChallenges;
 	private final DiscardExpiredChallengesService discardExpiredChallenges;
 	private final Clock clock;
 
-	public ChallengeDailyScheduler(StartDueChallengesService startDueChallenges,
-			DiscardExpiredChallengesService discardExpiredChallenges, Clock clock) {
+	public ChallengeDailyScheduler(ChallengeCertificationFailures certificationFailures,
+			StartDueChallengesService startDueChallenges, DiscardExpiredChallengesService discardExpiredChallenges,
+			Clock clock) {
+		this.certificationFailures = certificationFailures;
 		this.startDueChallenges = startDueChallenges;
 		this.discardExpiredChallenges = discardExpiredChallenges;
 		this.clock = clock;
@@ -36,6 +40,12 @@ public class ChallengeDailyScheduler {
 	@Scheduled(cron = "${morak.challenge.daily.cron:0 0 0 * * *}", zone = "Asia/Seoul")
 	public void runDaily() {
 		LocalDate today = LocalDate.ofInstant(clock.instant(), KST);
+		// ① 미제출 FAILED 생성 (어제 인증분)
+		try {
+			certificationFailures.createMissed(today);
+		} catch (RuntimeException exception) {
+			log.error("미제출 인증 FAILED 생성 배치 실패: today={}", today, exception);
+		}
 		// ② 시작 처리
 		try {
 			startDueChallenges.runFor(today);

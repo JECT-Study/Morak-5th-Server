@@ -37,7 +37,7 @@ public class MyChallengeController {
 	@GetMapping("/participations")
 	@Operation(summary = "내 챌린지 목록",
 			description = "status=HOME(기본)은 참여 중인 챌린지 전체, ARCHIVE는 퇴장·완주·조기 종료·폐기된 챌린지를 커서로 기본 20개, 최대 100개까지"
-					+ " 조회합니다. 팀 달성률·오늘 인증 현황·판정 대기 수는 인증 집계 연동 전까지 null입니다.")
+					+ " 조회합니다. 팀 달성률은 어제까지의 인증 의무가 없으면 null, 오늘 인증 현황은 오늘 인증하는 날이 아니면 null입니다.")
 	public ResponseEntity<ApiResponse<MyChallengePage>> list(@AuthenticationPrincipal LoginUser user,
 			@RequestParam(defaultValue = "HOME") MyChallengeFilter status,
 			@RequestParam(required = false) Long cursor,
