@@ -3,7 +3,7 @@ package com.morak.feature.certification.presentation.controller;
 import com.morak.common.config.OpenApiConfig;
 import com.morak.common.response.ApiResponse;
 import com.morak.feature.auth.application.dto.result.LoginUser;
-import com.morak.feature.certification.application.dto.result.CertificationReviewView.ChallengeOption;
+import com.morak.feature.certification.application.dto.result.CertificationReviewView.ChallengeSummary;
 import com.morak.feature.certification.application.dto.result.CertificationReviewView.Detail;
 import com.morak.feature.certification.application.dto.result.CertificationReviewView.Page;
 import com.morak.feature.certification.application.service.CertificationReviewService;
@@ -41,7 +41,8 @@ public class AdminCertificationReviewController {
 	@GetMapping
 	@Operation(summary = "검수 목록",
 			description = "포인트 공개 챌린지에 제출된 인증을 제출 시각 순으로 돌려줍니다. 최대 100건이며 totalCount는 조건에 맞는 전체 건수, "
-					+ "pendingCount는 조건과 무관한 전체 미검수 건수입니다. status 기본값은 PENDING(미검수만 보기)입니다.")
+					+ "pendingCount는 조건과 무관한 전체 미검수 건수, overdueCount는 그중 검수 마감(인증 다음 날 12:00 KST)이 지난 건수입니다. "
+					+ "각 항목의 reviewDueAt이 그 인증의 검수 마감입니다. status 기본값은 PENDING(미검수만 보기)입니다.")
 	public ResponseEntity<ApiResponse<Page>> list(
 			@Parameter(description = "인증 날짜(KST). 없으면 전체") @RequestParam(required = false)
 					@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate certDate,
@@ -52,9 +53,10 @@ public class AdminCertificationReviewController {
 	}
 
 	@GetMapping("/challenges")
-	@Operation(summary = "검수 대상 챌린지 목록", description = "목록 필터의 챌린지 선택지입니다. 검수 대상(포인트 공개) 챌린지만 돌려줍니다.")
-	public ResponseEntity<ApiResponse<List<ChallengeOption>>> challenges() {
-		return noStore(service.challengeOptions());
+	@Operation(summary = "챌린지별 검수 현황",
+			description = "검수 대상(포인트 공개) 챌린지마다 미검수·승인·거절 건수와 마감이 지난 미검수 건수를 돌려줍니다. 목록 필터의 챌린지 선택지로도 씁니다.")
+	public ResponseEntity<ApiResponse<List<ChallengeSummary>>> challenges() {
+		return noStore(service.challengeSummaries());
 	}
 
 	@GetMapping("/{certificationId}")
@@ -73,7 +75,7 @@ public class AdminCertificationReviewController {
 
 	@PostMapping("/{certificationId}/reject")
 	@Operation(summary = "인증 거절",
-			description = "미검수 인증을 거절하고 사유를 남깁니다. 사유는 필수(200자 이하)이며 제출자에게 표시됩니다. "
+			description = "미검수 인증을 거절하고 사유를 남깁니다. 사유는 필수(200자 이하)이고, 제출자에게 거절 알림(#12)이 갑니다. "
 					+ "다른 운영진이 먼저 처리했으면 409(CERTIFICATION_ALREADY_JUDGED)입니다.")
 	public ResponseEntity<ApiResponse<Detail>> reject(
 			@AuthenticationPrincipal LoginUser user,

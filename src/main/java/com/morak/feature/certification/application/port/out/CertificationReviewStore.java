@@ -1,6 +1,6 @@
 package com.morak.feature.certification.application.port.out;
 
-import com.morak.feature.certification.application.dto.result.CertificationReviewView.ChallengeOption;
+import com.morak.feature.certification.application.dto.result.CertificationReviewView.ChallengeSummary;
 import com.morak.feature.certification.application.dto.result.CertificationReviewView.Item;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -15,7 +15,11 @@ public interface CertificationReviewStore {
 
 	int count(Filter filter);
 
-	List<ChallengeOption> findChallengeOptions();
+	/** 검수 마감이 지난 미검수 건수. */
+	int countOverdue(Instant now);
+
+	/** 챌린지별 미검수·승인·거절 건수와 마감 지난 미검수 건수. */
+	List<ChallengeSummary> findChallengeSummaries(Instant now);
 
 	Optional<Row> findById(long certificationId);
 
