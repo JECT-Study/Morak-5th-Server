@@ -8,6 +8,7 @@ services:
     env_file: .env
     environment:
       REDIS_HOST: redis
+      MANAGEMENT_HEALTH_ELASTICSEARCH_ENABLED: "false"
     ports:
       - "8080:8080"
     mem_limit: 640m
