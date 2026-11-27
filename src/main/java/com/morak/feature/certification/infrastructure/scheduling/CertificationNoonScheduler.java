@@ -34,7 +34,7 @@ public class CertificationNoonScheduler {
 	}
 
 	/**
-	 * 12:05 퇴장 판정(⑥) 뒤 결과 확정(⑧). 기본 스케줄러는 스레드 하나라 정오 작업이 길어져도 그 작업이 끝난 뒤에 돈다. 퇴장 판정이
+	 * 12:05 퇴장 판정(⑥) 뒤 결과 확정(⑧). 배치 스케줄러는 스레드 하나라({@link com.morak.common.config.SchedulingConfig}) 정오 작업이 길어져도 그 작업이 끝난 뒤에 돈다. 퇴장 판정이
 	 * 실패해도 결과 확정은 돈다. TODO(D-47): ⑧을 ⑥ 바로 뒤에 붙이는 것은 제안이다.
 	 */
 	@Scheduled(cron = "${morak.certification.expel.cron:0 5 12 * * *}", zone = "Asia/Seoul")
