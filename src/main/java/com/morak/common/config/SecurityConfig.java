@@ -51,6 +51,8 @@ public class SecurityConfig {
 						.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 						// 배포 후 헬스 체크용. 상세 정보는 노출하지 않고 UP/DOWN만 응답한다.
 						.requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+						// AdMob 서버가 호출하는 광고 시청 완료 알림(SSV). JWT가 없고, 구글 서명 확인이 인증을 대신한다.
+						.requestMatchers(HttpMethod.GET, "/ads/ssv").permitAll()
 						// 웹소켓 핸드셰이크에는 JWT가 없다. 인증은 STOMP CONNECT의 1회용 티켓으로 한다.
 						.requestMatchers("/ws").permitAll()
 						// 위에서부터 처음 일치하는 규칙을 적용한다. 아래 API는 온보딩 전에도 로그인하면 호출할 수 있다.
